@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import 'dotenv/config';
 import { program } from 'commander';
 import { Ollama } from 'ollama';
 import chalk from 'chalk';
@@ -23,8 +24,8 @@ program
   .description('Simple CLI for interacting with Ollama LLM')
   .version('1.0.0')
   .argument('[prompt]', 'The prompt to send to the model')
-  .option('-m, --model <model>', 'Model to use', 'gpt-oss:latest')
-  .option('-h, --host <host>', 'Ollama host', 'http://172.31.240.1:11434')
+  .option('-m, --model <model>', 'Model to use', process.env.OLLAMA_MODEL || 'gpt-oss:latest')
+  .option('-h, --host <host>', 'Ollama host', process.env.OLLAMA_HOST || 'http://172.31.240.1:11434')
   .option('-s, --stream', 'Enable streaming output', false)
   .option('-t, --temperature <temperature>', 'Temperature for generation', parseFloat, 0.7)
   .option('-p, --prompt <prompt>', 'Prompt text (alternative to positional argument)')

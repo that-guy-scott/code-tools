@@ -6,6 +6,3 @@ node_modules/
 
 # IDE files
 .idea/
-
-# Project-specific files
-CLAUDE.md
