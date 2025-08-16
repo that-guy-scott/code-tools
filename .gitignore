@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# IDE files
+.idea/
+
+# Project-specific files
+CLAUDE.md
