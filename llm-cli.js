@@ -6,6 +6,9 @@ import chalk from 'chalk';
 import { createInterface } from 'readline';
 import { Ollama } from 'ollama';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { readFileSync, existsSync } from 'fs';
+import { resolve, join } from 'path';
+import { homedir } from 'os';
 
 class ProviderInterface {
   constructor() {
@@ -164,6 +167,87 @@ class GeminiProvider extends ProviderInterface {
         parameters: tool.parameters
       }]
     }));
+  }
+}
+
+class ConfigManager {
+  constructor() {
+    this.defaultConfig = {
+      defaultProvider: 'ollama',
+      providers: {
+        ollama: {
+          host: 'http://172.31.240.1:11434',
+          defaultModel: 'gpt-oss:latest'
+        },
+        gemini: {
+          defaultModel: 'gemini-2.0-flash'
+        }
+      },
+      tools: {
+        default: [],
+        development: ['github', 'postgres', 'docker', 'jetbrains'],
+        research: ['github', 'qdrant', 'neo4j-agent-memory']
+      },
+      output: {
+        format: 'text',
+        verbose: false
+      }
+    };
+  }
+
+  loadConfig(configPath = null) {
+    const configs = [];
+    
+    if (configPath && existsSync(configPath)) {
+      configs.push(JSON.parse(readFileSync(configPath, 'utf8')));
+    } else {
+      const configPaths = [
+        './.llm-cli.json',
+        join(homedir(), '.llm-cli.json'),
+        join(homedir(), '.config', 'llm-cli', 'config.json')
+      ];
+      
+      for (const path of configPaths) {
+        if (existsSync(path)) {
+          configs.push(JSON.parse(readFileSync(path, 'utf8')));
+          break;
+        }
+      }
+    }
+
+    configs.push(this.defaultConfig);
+    return this.mergeConfigs(...configs);
+  }
+
+  mergeConfigs(...configs) {
+    return configs.reduceRight((merged, config) => {
+      return this.deepMerge(merged, config);
+    }, {});
+  }
+
+  deepMerge(target, source) {
+    const result = { ...target };
+    for (const key in source) {
+      if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+        result[key] = this.deepMerge(result[key] || {}, source[key]);
+      } else {
+        result[key] = source[key];
+      }
+    }
+    return result;
+  }
+
+  applyEnvironmentOverrides(config) {
+    if (process.env.LLM_CLI_PROVIDER) {
+      config.defaultProvider = process.env.LLM_CLI_PROVIDER;
+    }
+    if (process.env.LLM_CLI_MODEL) {
+      config.defaultModel = process.env.LLM_CLI_MODEL;
+    }
+    if (process.env.LLM_CLI_TOOLS) {
+      config.defaultTools = process.env.LLM_CLI_TOOLS.split(',');
+    }
+    return config;
   }
 }
 
