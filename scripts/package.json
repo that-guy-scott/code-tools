@@ -1,0 +1,19 @@
+{
+  "name": "code-tools-migration-scripts",
+  "version": "1.0.0",
+  "description": "Migration scripts for code-tools project",
+  "main": "migrate-memory-to-neo4j.js",
+  "scripts": {
+    "migrate": "node migrate-memory-to-neo4j.js",
+    "migrate:clean": "NEO4J_CLEAR=true node migrate-memory-to-neo4j.js"
+  },
+  "dependencies": {
+    "neo4j-driver": "^5.15.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["neo4j", "migration", "knowledge-graph", "mcp"],
+  "author": "Code Tools Project",
+  "license": "MIT"
+}

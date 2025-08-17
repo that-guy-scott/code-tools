@@ -1,0 +1,103 @@
+# Qdrant Production Configuration
+# Vector Database for AI/ML Applications with MCP Integration
+
+# Service configuration
+service:
+  # Maximum size of a POST request
+  max_request_size_mb: 32
+  # Number of parallel requests processed per collection
+  max_workers: 0 # Auto-detect based on CPU cores
+  # CORS settings for web UI
+  enable_cors: true
+  # API key for authentication (set via environment variable for security)
+  # api_key: ${QDRANT_API_KEY}
+
+# Storage configuration
+storage:
+  # Path to store all data
+  storage_path: /qdrant/storage
+  # Snapshots configuration
+  snapshots_path: /qdrant/storage/snapshots
+  # Temporary files during collection creation
+  temp_path: /qdrant/storage/temp
+  # Performance tuning
+  performance:
+    # Number of segments to create per collection
+    max_segment_size_kb: 20000
+    # Indexing threshold
+    indexing_threshold_kb: 20000
+    # Flush threshold
+    flush_interval_sec: 5
+    # Maximum concurrent index operations
+    max_indexing_threads: 0 # Auto-detect
+
+# Logging configuration  
+log_level: INFO
+
+# Telemetry (disable for privacy)
+telemetry_disabled: true
+
+# Cluster configuration (for future scaling)
+cluster:
+  # Current node configuration
+  enabled: false
+  # Node ID (auto-generated if not specified)
+  # node_id: 0
+  # Consensus configuration
+  consensus:
+    # Bootstrap timeout
+    timeout_ms: 5000
+
+# TLS configuration (for production security)
+tls:
+  # Enable TLS
+  enabled: false
+  # Certificate files (uncomment for production)
+  # cert: /path/to/cert.pem
+  # key: /path/to/key.pem
+
+# Debug settings (disable in production)
+debug: false
+
+# Indexing configuration for AI workloads
+collections:
+  # Default configuration for new collections
+  default_config:
+    # Vector configuration
+    vectors:
+      size: 384  # Default for sentence-transformers/all-MiniLM-L6-v2
+      distance: Cosine
+    # Optimization settings for AI workloads
+    optimizer_config:
+      # Deleted vectors cleanup
+      deleted_threshold: 0.2
+      # Vacuum frequency
+      vacuum_min_vector_number: 1000
+      # Default segment number
+      default_segment_number: 0
+      # Maximum concurrent optimizations
+      max_optimization_threads: 1
+    # Write-ahead log configuration
+    wal_config:
+      # WAL capacity
+      wal_capacity_mb: 32
+      # WAL segments
+      wal_segments_ahead: 0
+    # HNSW index configuration for fast similarity search
+    hnsw_config:
+      # Number of connections for every new element during construction
+      m: 16
+      # Size of the dynamic candidate list
+      ef_construct: 100
+      # Maximum number of connections for every element during search
+      ef: 128
+      # Probability of being selected during construction
+      full_scan_threshold: 10000
+
+# HTTP API configuration
+web_ui: true  # Enable web interface
+api:
+  # Enable API key authentication
+  enable_api_key: false  # Set to true in production
+  # Maximum payload size
+  max_payload_size_mb: 64

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "jetbrains": {
+      "command": "npx",
+      "args": ["-y", "@jetbrains/mcp-proxy"],
+      "env": {
+        "HOST": "172.31.240.1",
+        "IDE_PORT": "63341",
+        "LOG_ENABLED": "true"
+      }
+    }
+  }
+}

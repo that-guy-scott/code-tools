@@ -1,0 +1,282 @@
+{
+  "version": "1.0.0",
+  "description": "Complete inventory of MCP servers and their configurations",
+  "lastUpdated": "2025-01-17",
+  "environment": "development",
+  
+  "servers": {
+    "core": {
+      "description": "Essential MCP servers for basic functionality",
+      "servers": {
+        "filesystem": {
+          "package": "@modelcontextprotocol/server-filesystem",
+          "type": "npm",
+          "description": "Secure file operations with configurable access controls",
+          "environment": {
+            "ALLOWED_DIRECTORIES": "$HOME/repo,$HOME/projects,/tmp"
+          },
+          "command": "npx -y @modelcontextprotocol/server-filesystem",
+          "required": true,
+          "capabilities": [
+            "read_file",
+            "write_file", 
+            "list_directory",
+            "search_files",
+            "create_directory"
+          ]
+        },
+        "memory": {
+          "package": "@modelcontextprotocol/server-memory",
+          "type": "npm",
+          "description": "Persistent project context and knowledge graph across sessions",
+          "environment": {},
+          "command": "npx -y @modelcontextprotocol/server-memory",
+          "required": true,
+          "capabilities": [
+            "store_memory",
+            "retrieve_memory",
+            "search_memory",
+            "create_entities",
+            "create_relations"
+          ]
+        },
+        "sequential-thinking": {
+          "package": "@modelcontextprotocol/server-sequential-thinking",
+          "type": "npm",
+          "description": "Advanced problem-solving with step-by-step reasoning",
+          "environment": {},
+          "command": "npx -y @modelcontextprotocol/server-sequential-thinking",
+          "required": false,
+          "capabilities": [
+            "sequential_reasoning",
+            "thought_branching",
+            "hypothesis_generation",
+            "solution_verification"
+          ]
+        }
+      }
+    },
+    
+    "development": {
+      "description": "Development workflow and tool integration",
+      "servers": {
+        "github": {
+          "package": "@modelcontextprotocol/server-github",
+          "type": "npm",
+          "description": "Repository management, issues, PRs, and code analysis",
+          "environment": {
+            "GITHUB_PERSONAL_ACCESS_TOKEN": "required - set in .env"
+          },
+          "command": "npx -y @modelcontextprotocol/server-github",
+          "required": false,
+          "prerequisites": ["GitHub Personal Access Token"],
+          "capabilities": [
+            "repository_management",
+            "issue_tracking",
+            "pull_requests",
+            "code_search",
+            "file_operations"
+          ]
+        },
+        "puppeteer": {
+          "package": "@modelcontextprotocol/server-puppeteer", 
+          "type": "npm",
+          "description": "Web browser automation and testing",
+          "environment": {},
+          "command": "npx -y @modelcontextprotocol/server-puppeteer",
+          "required": false,
+          "capabilities": [
+            "browser_automation",
+            "page_navigation",
+            "element_interaction",
+            "screenshot_capture",
+            "form_filling"
+          ]
+        }
+      }
+    },
+    
+    "database": {
+      "description": "Database and vector storage integration",
+      "servers": {
+        "qdrant": {
+          "package": "mcp-server-qdrant",
+          "type": "python",
+          "description": "Vector database for semantic search and embeddings",
+          "environment": {
+            "QDRANT_URL": "http://localhost:6333",
+            "COLLECTION_NAME": "mcp-memory",
+            "EMBEDDING_MODEL": "sentence-transformers/all-MiniLM-L6-v2"
+          },
+          "command": "./venv-mcp/bin/mcp-server-qdrant",
+          "required": false,
+          "prerequisites": [
+            "Python virtual environment (venv-mcp)",
+            "Qdrant server running on localhost:6333"
+          ],
+          "capabilities": [
+            "vector_storage",
+            "semantic_search",
+            "embedding_generation",
+            "similarity_queries",
+            "collection_management"
+          ]
+        }
+      }
+    },
+    
+    "infrastructure": {
+      "description": "Infrastructure and deployment tools", 
+      "servers": {
+        "docker-mcp": {
+          "package": "@modelcontextprotocol/server-docker",
+          "type": "npm",
+          "description": "Container management and orchestration",
+          "environment": {},
+          "command": "npx -y @modelcontextprotocol/server-docker",
+          "required": false,
+          "prerequisites": ["Docker installed and running"],
+          "capabilities": [
+            "container_management",
+            "image_operations",
+            "docker_compose",
+            "container_logs",
+            "system_info"
+          ]
+        }
+      }
+    },
+    
+    "ide": {
+      "description": "IDE integration for enhanced development experience",
+      "servers": {
+        "jetbrains": {
+          "package": "@jetbrains/mcp-proxy",
+          "type": "npm",
+          "description": "IntelliJ IDEA integration via WSL2",
+          "environment": {
+            "HOST": "auto-detected-windows-ip",
+            "IDE_PORT": "63341",
+            "LOG_ENABLED": "true"
+          },
+          "command": "npx -y @jetbrains/mcp-proxy",
+          "required": false,
+          "prerequisites": [
+            "WSL2 environment",
+            "IntelliJ IDEA running on Windows",
+            "MCP Server plugin installed in IntelliJ",
+            "'Can accept external connections' enabled in IntelliJ"
+          ],
+          "capabilities": [
+            "real_time_error_detection",
+            "code_analysis",
+            "project_navigation",
+            "ide_integration",
+            "debug_support"
+          ]
+        }
+      }
+    }
+  },
+  
+  "installation_order": [
+    "core.filesystem",
+    "core.memory", 
+    "core.sequential-thinking",
+    "development.puppeteer",
+    "database.qdrant",
+    "infrastructure.docker-mcp",
+    "development.github",
+    "ide.jetbrains"
+  ],
+  
+  "setup_scripts": {
+    "complete": "./setup-all-mcp.sh",
+    "verification": "./verify-mcp-setup.sh",
+    "troubleshooting": "./troubleshoot-mcp.sh",
+    "individual": {
+      "core": "./setup-mcp.sh",
+      "qdrant": "./setup-qdrant-mcp.sh",
+      "phase1": "./setup-mcp-phase1.sh",
+      "phase2": "./setup-mcp-phase2.sh", 
+      "phase3": "./setup-mcp-phase3-docker.sh"
+    }
+  },
+  
+  "dependencies": {
+    "system": {
+      "node": ">=18.0.0",
+      "python": ">=3.8.0",
+      "docker": ">=20.0.0 (optional)",
+      "git": ">=2.0.0"
+    },
+    "services": {
+      "qdrant": {
+        "description": "Vector database server",
+        "docker_image": "qdrant/qdrant:latest",
+        "ports": ["6333:6333", "6334:6334"],
+        "required_for": ["database.qdrant"]
+      },
+      "postgres": {
+        "description": "PostgreSQL database",
+        "docker_image": "postgres:16-alpine", 
+        "ports": ["5432:5432"],
+        "required_for": ["future database servers"]
+      },
+      "redis": {
+        "description": "Redis cache",
+        "docker_image": "redis:7-alpine",
+        "ports": ["6379:6379"], 
+        "required_for": ["future caching servers"]
+      }
+    }
+  },
+  
+  "environment_variables": {
+    "required": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": {
+        "description": "GitHub API access for repository operations",
+        "required_for": ["development.github"],
+        "setup_url": "https://github.com/settings/tokens"
+      }
+    },
+    "optional": {
+      "QDRANT_URL": {
+        "description": "Qdrant server URL",
+        "default": "http://localhost:6333",
+        "required_for": ["database.qdrant"]
+      },
+      "ALLOWED_DIRECTORIES": {
+        "description": "Filesystem server access control",
+        "default": "$HOME/repo,$HOME/projects,/tmp",
+        "required_for": ["core.filesystem"]
+      }
+    }
+  },
+  
+  "verification_tests": {
+    "connection": "claude mcp list | grep '✓ Connected'",
+    "filesystem": "Test file read/write operations",
+    "memory": "Test knowledge graph operations",
+    "qdrant": "Test vector storage and retrieval",
+    "github": "Test repository access (if configured)",
+    "docker": "Test container management (if Docker available)",
+    "jetbrains": "Test IDE integration (if WSL2 + IntelliJ)"
+  },
+  
+  "troubleshooting": {
+    "common_issues": {
+      "connection_refused": "Check if services are running and ports are accessible",
+      "npm_package_not_found": "Ensure internet connection and npm registry access",
+      "python_import_error": "Check virtual environment activation and package installation",
+      "docker_not_found": "Install Docker or skip Docker-dependent servers",
+      "permission_denied": "Check file permissions and user access rights"
+    },
+    "diagnostic_commands": {
+      "mcp_status": "claude mcp list",
+      "docker_status": "docker ps",
+      "service_health": "curl -s http://localhost:6333/collections",
+      "network_test": "ping -c 1 localhost"
+    }
+  }
+}

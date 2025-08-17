@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code-Tools Memory Graph - Interactive Knowledge Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            margin-bottom: 20px;
+            opacity: 0.9;
+            font-size: 18px;
+        }
+        
+        .controls {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .search-container {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        #search {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.9);
+            color: #333;
+            font-size: 14px;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .legend {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        
+        #graph-container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 10px;
+            padding: 10px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .node {
+            cursor: pointer;
+            stroke: #fff;
+            stroke-width: 2px;
+        }
+        
+        .node:hover {
+            stroke-width: 3px;
+            filter: brightness(1.2);
+        }
+        
+        .link {
+            stroke: rgba(255,255,255,0.6);
+            stroke-width: 1.5px;
+            marker-end: url(#arrowhead);
+        }
+        
+        .link:hover {
+            stroke: rgba(255,255,255,0.9);
+            stroke-width: 2px;
+        }
+        
+        .node-label {
+            font-size: 11px;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            max-width: 300px;
+            font-size: 12px;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stats {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+        }
+        
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #64ffda;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        .highlighted {
+            stroke: #ffeb3b !important;
+            stroke-width: 4px !important;
+            filter: brightness(1.5) !important;
+        }
+        
+        .dimmed {
+            opacity: 0.3;
+        }
+        
+        .controls button {
+            background: rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.3);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .controls button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Code-Tools Memory Graph</h1>
+        <p class="subtitle">Interactive Knowledge Graph Visualization - 83+ Entities, 167+ Relationships</p>
+        
+        <div class="controls">
+            <div class="search-container">
+                <input type="text" id="search" placeholder="Search entities, types, or relationships..." />
+                <button onclick="resetGraph()">Reset View</button>
+                <button onclick="centerGraph()">Center Graph</button>
+                <button onclick="togglePhysics()">Toggle Physics</button>
+            </div>
+            
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff6b6b"></div>
+                    <span>Project</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4ecdc4"></div>
+                    <span>Directory</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #45b7d1"></div>
+                    <span>Config Files</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #96ceb4"></div>
+                    <span>Scripts</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #feca57"></div>
+                    <span>Docker Files</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff9ff3"></div>
+                    <span>Database Files</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #54a0ff"></div>
+                    <span>Services</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #5f27cd"></div>
+                    <span>MCP Servers</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #00d2d3"></div>
+                    <span>Workflows</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ff9f43"></div>
+                    <span>Knowledge</span>
+                </div>
+            </div>
+        </div>
+        
+        <div id="graph-container">
+            <svg id="graph"></svg>
+        </div>
+        
+        <div class="stats">
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="total-entities">0</div>
+                    <div class="stat-label">Total Entities</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="total-relations">0</div>
+                    <div class="stat-label">Total Relations</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="entity-types">0</div>
+                    <div class="stat-label">Entity Types</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="relation-types">0</div>
+                    <div class="stat-label">Relation Types</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip" style="display: none;"></div>
+
+    <script>
+        // Graph configuration
+        const config = {
+            width: 1200,
+            height: 800,
+            nodeRadius: 8,
+            linkDistance: 100,
+            chargeStrength: -300,
+            physicsEnabled: true
+        };
+
+        // Color scheme for entity types
+        const entityColors = {
+            'project': '#ff6b6b',
+            'directory': '#4ecdc4',
+            'config_file': '#45b7d1',
+            'script': '#96ceb4',
+            'docker_file': '#feca57',
+            'database_file': '#ff9ff3',
+            'database_service': '#54a0ff',
+            'cache_service': '#54a0ff',
+            'vector_database': '#54a0ff',
+            'mcp_server': '#5f27cd',
+            'operational_workflow': '#00d2d3',
+            'development_workflow': '#00d2d3',
+            'diagnostic_procedure': '#ff9f43',
+            'setup_procedure': '#ff9f43',
+            'network_configuration': '#ff9f43',
+            'configuration_reference': '#ff9f43',
+            'dependency_map': '#ff9f43',
+            'troubleshooting_knowledge': '#ff9f43',
+            'optimization_knowledge': '#ff9f43',
+            'security_knowledge': '#ff9f43'
+        };
+
+        let svg, g, simulation, nodes, links, node, link, label, tooltip;
+        let graphData = { nodes: [], links: [] };
+
+        // Initialize the visualization
+        async function init() {
+            try {
+                // Load data
+                const response = await fetch('./memory.json');
+                const text = await response.text();
+                const lines = text.split('\n').filter(line => line.trim());
+                
+                const entities = [];
+                const relations = [];
+                
+                lines.forEach(line => {
+                    const data = JSON.parse(line);
+                    if (data.type === 'entity') {
+                        entities.push(data);
+                    } else if (data.type === 'relation') {
+                        relations.push(data);
+                    }
+                });
+                
+                // Transform data for D3
+                graphData.nodes = entities.map(entity => ({
+                    id: entity.name,
+                    type: entity.entityType,
+                    observations: entity.observations,
+                    color: entityColors[entity.entityType] || '#cccccc'
+                }));
+                
+                graphData.links = relations.map(relation => ({
+                    source: relation.from,
+                    target: relation.to,
+                    type: relation.relationType
+                }));
+                
+                // Update stats
+                updateStats();
+                
+                // Create the graph
+                createGraph();
+                
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('graph-container').innerHTML = '<p style="color: red; text-align: center; padding: 50px;">Error loading memory.json file. Make sure it exists in the same directory.</p>';
+            }
+        }
+
+        function updateStats() {
+            document.getElementById('total-entities').textContent = graphData.nodes.length;
+            document.getElementById('total-relations').textContent = graphData.links.length;
+            document.getElementById('entity-types').textContent = new Set(graphData.nodes.map(n => n.type)).size;
+            document.getElementById('relation-types').textContent = new Set(graphData.links.map(l => l.type)).size;
+        }
+
+        function createGraph() {
+            // Setup SVG
+            svg = d3.select('#graph')
+                .attr('width', config.width)
+                .attr('height', config.height);
+            
+            // Add arrow marker for directed edges
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 15)
+                .attr('refY', 0)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', 'rgba(255,255,255,0.6)');
+            
+            // Create zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 3])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom);
+            
+            g = svg.append('g');
+            
+            // Create force simulation
+            simulation = d3.forceSimulation(graphData.nodes)
+                .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(config.linkDistance))
+                .force('charge', d3.forceManyBody().strength(config.chargeStrength))
+                .force('center', d3.forceCenter(config.width / 2, config.height / 2))
+                .force('collision', d3.forceCollide().radius(config.nodeRadius + 2));
+            
+            // Create links
+            link = g.append('g')
+                .selectAll('line')
+                .data(graphData.links)
+                .enter().append('line')
+                .attr('class', 'link')
+                .on('mouseover', function(event, d) {
+                    showTooltip(event, `${d.source.id} → ${d.target.id}<br/><strong>${d.type}</strong>`);
+                })
+                .on('mouseout', hideTooltip);
+            
+            // Create nodes
+            node = g.append('g')
+                .selectAll('circle')
+                .data(graphData.nodes)
+                .enter().append('circle')
+                .attr('class', 'node')
+                .attr('r', config.nodeRadius)
+                .attr('fill', d => d.color)
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended))
+                .on('mouseover', function(event, d) {
+                    const observations = d.observations.length > 3 ? 
+                        d.observations.slice(0, 3).join('<br/>') + '<br/>...' : 
+                        d.observations.join('<br/>');
+                    showTooltip(event, `<strong>${d.id}</strong><br/><em>${d.type}</em><br/><br/>${observations}`);
+                })
+                .on('mouseout', hideTooltip)
+                .on('click', function(event, d) {
+                    highlightConnected(d);
+                });
+            
+            // Create labels
+            label = g.append('g')
+                .selectAll('text')
+                .data(graphData.nodes)
+                .enter().append('text')
+                .attr('class', 'node-label')
+                .text(d => d.id.length > 15 ? d.id.substring(0, 12) + '...' : d.id);
+            
+            // Update positions on simulation tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+                
+                label
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y + 4);
+            });
+            
+            // Setup search
+            setupSearch();
+            
+            tooltip = d3.select('#tooltip');
+        }
+
+        function setupSearch() {
+            const searchInput = document.getElementById('search');
+            searchInput.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase();
+                
+                if (searchTerm === '') {
+                    resetHighlight();
+                    return;
+                }
+                
+                // Find matching nodes
+                const matchingNodes = graphData.nodes.filter(node => 
+                    node.id.toLowerCase().includes(searchTerm) ||
+                    node.type.toLowerCase().includes(searchTerm) ||
+                    node.observations.some(obs => obs.toLowerCase().includes(searchTerm))
+                );
+                
+                // Find matching links
+                const matchingLinks = graphData.links.filter(link =>
+                    link.type.toLowerCase().includes(searchTerm)
+                );
+                
+                highlightSearch(matchingNodes, matchingLinks);
+            });
+        }
+
+        function highlightSearch(matchingNodes, matchingLinks) {
+            // Reset all highlights
+            node.classed('highlighted', false).classed('dimmed', false);
+            link.classed('highlighted', false).classed('dimmed', false);
+            
+            // Highlight matching nodes
+            node.classed('highlighted', d => matchingNodes.includes(d))
+                .classed('dimmed', d => !matchingNodes.includes(d) && matchingNodes.length > 0);
+            
+            // Highlight matching links
+            link.classed('highlighted', d => matchingLinks.includes(d))
+                .classed('dimmed', d => !matchingLinks.includes(d) && matchingLinks.length > 0);
+        }
+
+        function highlightConnected(selectedNode) {
+            // Reset highlights
+            resetHighlight();
+            
+            // Find connected nodes
+            const connectedNodes = new Set([selectedNode]);
+            const connectedLinks = [];
+            
+            graphData.links.forEach(link => {
+                if (link.source === selectedNode || link.target === selectedNode) {
+                    connectedLinks.push(link);
+                    connectedNodes.add(link.source === selectedNode ? link.target : link.source);
+                }
+            });
+            
+            // Apply highlights
+            node.classed('highlighted', d => connectedNodes.has(d))
+                .classed('dimmed', d => !connectedNodes.has(d));
+            
+            link.classed('highlighted', d => connectedLinks.includes(d))
+                .classed('dimmed', d => !connectedLinks.includes(d));
+        }
+
+        function resetHighlight() {
+            node.classed('highlighted', false).classed('dimmed', false);
+            link.classed('highlighted', false).classed('dimmed', false);
+        }
+
+        function resetGraph() {
+            document.getElementById('search').value = '';
+            resetHighlight();
+            
+            // Reset zoom
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity
+            );
+        }
+
+        function centerGraph() {
+            const bounds = g.node().getBBox();
+            const fullWidth = config.width;
+            const fullHeight = config.height;
+            const width = bounds.width;
+            const height = bounds.height;
+            const midX = bounds.x + width / 2;
+            const midY = bounds.y + height / 2;
+            
+            const scale = Math.min(fullWidth / width, fullHeight / height) * 0.8;
+            const translate = [fullWidth / 2 - scale * midX, fullHeight / 2 - scale * midY];
+            
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity.translate(translate[0], translate[1]).scale(scale)
+            );
+        }
+
+        function togglePhysics() {
+            if (config.physicsEnabled) {
+                simulation.stop();
+                config.physicsEnabled = false;
+            } else {
+                simulation.restart();
+                config.physicsEnabled = true;
+            }
+        }
+
+        function showTooltip(event, content) {
+            tooltip
+                .style('display', 'block')
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 10) + 'px')
+                .html(content);
+        }
+
+        function hideTooltip() {
+            tooltip.style('display', 'none');
+        }
+
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
