@@ -35,7 +35,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-postgres",
+        "mcp-postgres-full-access",
         "postgresql://codetools:dev_password_123@localhost:5432/codetools_dev"
       ]
     },

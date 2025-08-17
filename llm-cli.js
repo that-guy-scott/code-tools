@@ -5,6 +5,34 @@ import { program } from 'commander';
 import chalk from 'chalk';
 import { createInterface } from 'readline';
 
+class ProviderInterface {
+  constructor() {
+    if (this.constructor === ProviderInterface) {
+      throw new Error('ProviderInterface is abstract and cannot be instantiated');
+    }
+  }
+
+  async getAvailableModels() {
+    throw new Error('getAvailableModels() must be implemented by provider');
+  }
+
+  async generateResponse(prompt, options) {
+    throw new Error('generateResponse() must be implemented by provider');
+  }
+
+  async callFunction(functionCall, context) {
+    throw new Error('callFunction() must be implemented by provider');
+  }
+
+  validateModel(modelName) {
+    throw new Error('validateModel() must be implemented by provider');
+  }
+
+  formatToolsForProvider(tools) {
+    throw new Error('formatToolsForProvider() must be implemented by provider');
+  }
+}
+
 program
   .name('llm-cli')
   .description('Universal CLI for multiple LLM providers with MCP integration')
