@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { program } from 'commander';
 import chalk from 'chalk';
 import { createInterface } from 'readline';
+import { Ollama } from 'ollama';
 
 class ProviderInterface {
   constructor() {
@@ -30,6 +31,71 @@ class ProviderInterface {
 
   formatToolsForProvider(tools) {
     throw new Error('formatToolsForProvider() must be implemented by provider');
+  }
+}
+
+class OllamaProvider extends ProviderInterface {
+  constructor(config = {}) {
+    super();
+    this.host = config.host || process.env.OLLAMA_HOST || 'http://172.31.240.1:11434';
+    this.ollama = new Ollama({ host: this.host });
+    this.availableModels = [
+      'gpt-oss:latest',
+      'qwen3:30b', 
+      'qwen3-coder:latest',
+      'gemma3:27b',
+      'qwen2.5-coder:32b',
+      'nomic-embed-text:latest'
+    ];
+  }
+
+  async getAvailableModels() {
+    try {
+      const response = await this.ollama.list();
+      return response.models.map(model => model.name);
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not fetch models from Ollama, using defaults'));
+      return this.availableModels;
+    }
+  }
+
+  async generateResponse(prompt, options) {
+    const config = {
+      model: options.model || 'gpt-oss:latest',
+      prompt: prompt,
+      stream: options.stream || false,
+      options: {
+        temperature: options.temperature || 0.7,
+        num_predict: options.maxTokens,
+        top_p: options.topP,
+        top_k: options.topK
+      }
+    };
+
+    if (options.tools && options.tools.length > 0) {
+      config.tools = this.formatToolsForProvider(options.tools);
+    }
+
+    return await this.ollama.generate(config);
+  }
+
+  async callFunction(functionCall, context) {
+    throw new Error('Function calling not yet implemented for OllamaProvider');
+  }
+
+  validateModel(modelName) {
+    return this.availableModels.includes(modelName);
+  }
+
+  formatToolsForProvider(tools) {
+    return tools.map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
+      }
+    }));
   }
 }
 
