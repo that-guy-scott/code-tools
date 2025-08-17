@@ -130,6 +130,12 @@ class GeminiProvider extends ProviderInterface {
 
   async generateResponse(prompt, options) {
     const modelName = options.model || 'gemini-2.0-flash';
+    
+    // Validate model
+    if (!this.validateModel(modelName)) {
+      throw new Error(`Invalid model: ${modelName}. Available models: ${this.availableModels.join(', ')}`);
+    }
+    
     const model = this.genAI.getGenerativeModel({ 
       model: modelName,
       generationConfig: {
@@ -140,14 +146,34 @@ class GeminiProvider extends ProviderInterface {
       }
     });
 
-    if (options.tools && options.tools.length > 0) {
-      const tools = this.formatToolsForProvider(options.tools);
-      const chat = model.startChat({ tools });
-      const result = await chat.sendMessage(prompt);
-      return result.response;
-    } else {
-      const result = await model.generateContent(prompt);
-      return result.response;
+    try {
+      if (options.tools && options.tools.length > 0) {
+        const tools = this.formatToolsForProvider(options.tools);
+        const chat = model.startChat({ tools });
+        const result = await chat.sendMessage(prompt);
+        const response = await result.response;
+        return {
+          text: response.text(),
+          response: response.text(),
+          usage: response.usageMetadata
+        };
+      } else {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return {
+          text: response.text(),
+          response: response.text(),
+          usage: response.usageMetadata
+        };
+      }
+    } catch (error) {
+      if (error.message.includes('API key')) {
+        throw new Error(`Google AI API key error: ${error.message}. Get your API key from: https://aistudio.google.com/app/apikey`);
+      }
+      if (error.message.includes('model')) {
+        throw new Error(`Model error: ${error.message}. Available models: ${this.availableModels.join(', ')}`);
+      }
+      throw new Error(`Gemini API error: ${error.message}`);
     }
   }
 
