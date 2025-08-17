@@ -1,0 +1,19 @@
+Universal LLM CLI v2.0.0
+Discovered 9 MCP servers:
+  • jetbrains: npx -y @jetbrains/mcp-proxy
+  • github: npx -y @modelcontextprotocol/server-github
+  • puppeteer: npx -y @modelcontextprotocol/server-puppeteer
+  • docker-mcp: /home/owner/.local/bin/uvx mcp-server-docker
+  • qdrant: ./mcp/venv-mcp/bin/mcp-server-qdrant 
+  • postgres: npx -y mcp-postgres-full-access postgresql://codetools:dev_password_123@localhost:5432/codetools_dev
+  • redis: npx -y @modelcontextprotocol/server-redis redis://localhost:6379
+  • neo4j-agent-memory: npx -y @knowall-ai/mcp-neo4j-agent-memory
+  • neo4j-server: npx -y @alanse/mcp-neo4j-server
+Generating response with gemini...
+Using model: gemini-2.0-flash
+{
+  "provider": "gemini",
+  "model": "gemini-2.0-flash",
+  "prompt": "Write a Python function that takes a list of integers and returns the two numbers that sum to a target value. Include error handling for edge cases and write a few test cases to demonstrate it works.",
+  "timestamp": "2025-08-17T17:26:54.057Z"
+}
