@@ -5,6 +5,7 @@ import { program } from 'commander';
 import chalk from 'chalk';
 import { createInterface } from 'readline';
 import { Ollama } from 'ollama';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 class ProviderInterface {
   constructor() {
@@ -95,6 +96,73 @@ class OllamaProvider extends ProviderInterface {
         description: tool.description,
         parameters: tool.parameters
       }
+    }));
+  }
+}
+
+class GeminiProvider extends ProviderInterface {
+  constructor(config = {}) {
+    super();
+    this.apiKey = config.apiKey || process.env.GOOGLE_AI_API_KEY;
+    if (!this.apiKey) {
+      throw new Error('Google AI API key required. Set GOOGLE_AI_API_KEY environment variable.');
+    }
+    this.genAI = new GoogleGenerativeAI(this.apiKey);
+    this.availableModels = [
+      'gemini-2.0-flash',
+      'gemini-2.5-flash', 
+      'gemini-2.5-pro'
+    ];
+  }
+
+  async getAvailableModels() {
+    try {
+      const models = await this.genAI.listModels();
+      return models.map(model => model.name.replace('models/', ''));
+    } catch (error) {
+      console.warn(chalk.yellow('Warning: Could not fetch models from Gemini, using defaults'));
+      return this.availableModels;
+    }
+  }
+
+  async generateResponse(prompt, options) {
+    const modelName = options.model || 'gemini-2.0-flash';
+    const model = this.genAI.getGenerativeModel({ 
+      model: modelName,
+      generationConfig: {
+        temperature: options.temperature || 0.7,
+        maxOutputTokens: options.maxTokens,
+        topP: options.topP,
+        topK: options.topK
+      }
+    });
+
+    if (options.tools && options.tools.length > 0) {
+      const tools = this.formatToolsForProvider(options.tools);
+      const chat = model.startChat({ tools });
+      const result = await chat.sendMessage(prompt);
+      return result.response;
+    } else {
+      const result = await model.generateContent(prompt);
+      return result.response;
+    }
+  }
+
+  async callFunction(functionCall, context) {
+    throw new Error('Function calling not yet implemented for GeminiProvider');
+  }
+
+  validateModel(modelName) {
+    return this.availableModels.includes(modelName);
+  }
+
+  formatToolsForProvider(tools) {
+    return tools.map(tool => ({
+      functionDeclarations: [{
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
+      }]
     }));
   }
 }
