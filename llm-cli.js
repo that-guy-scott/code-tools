@@ -545,7 +545,14 @@ async function readFromStdin() {
 async function main() {
   try {
     console.log(chalk.blue('Universal LLM CLI v2.0.0'));
-    console.log(chalk.yellow('🚧 Implementation in progress...'));
+    
+    const configManager = new ConfigManager();
+    const config = configManager.applyEnvironmentOverrides(configManager.loadConfig(options.config));
+    
+    const mcpManager = new MCPManager();
+    await mcpManager.discoverServers();
+    
+    const toolManager = new ToolManager(mcpManager);
     
     if (options.listProviders) {
       console.log(chalk.green('Available providers:'));
@@ -556,7 +563,60 @@ async function main() {
       process.exit(0);
     }
     
-    console.log(chalk.yellow('Provider abstraction layer and MCP integration coming in next commits...'));
+    if (options.listTools) {
+      console.log(chalk.green('Available MCP tools:'));
+      const tools = await toolManager.discoverTools(options.tools);
+      if (tools.length === 0) {
+        console.log(chalk.yellow('  No tools discovered. Check MCP server configuration.'));
+      } else {
+        for (const tool of tools) {
+          console.log(chalk.gray(`  • ${tool.server}__${tool.name}: ${tool.description}`));
+        }
+      }
+      process.exit(0);
+    }
+    
+    const provider = options.provider || config.defaultProvider;
+    
+    if (options.listModels) {
+      console.log(chalk.green(`Available models for ${provider}:`));
+      try {
+        let providerInstance;
+        if (provider === 'ollama') {
+          providerInstance = new OllamaProvider(config.providers.ollama);
+        } else if (provider === 'gemini') {
+          providerInstance = new GeminiProvider(config.providers.gemini);
+        } else {
+          throw new Error(`Provider ${provider} not yet implemented`);
+        }
+        
+        const models = await providerInstance.getAvailableModels();
+        for (const model of models) {
+          console.log(chalk.gray(`  • ${model}`));
+        }
+      } catch (error) {
+        console.error(chalk.red('Error fetching models:'), error.message);
+        process.exit(1);
+      }
+      process.exit(0);
+    }
+    
+    let prompt = args[0] || options.prompt;
+    
+    if (options.stdin) {
+      prompt = await readFromStdin();
+    }
+    
+    if (!prompt) {
+      console.error(chalk.red('Error: No prompt provided'));
+      console.log(chalk.gray('Use: llm-cli "your prompt" or --stdin to read from stdin'));
+      process.exit(1);
+    }
+    
+    console.log(chalk.yellow('🚧 LLM generation and tool calling implementation coming in next commits...'));
+    console.log(chalk.blue(`Would generate response for prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`));
+    console.log(chalk.gray(`Provider: ${provider}, Tools: ${options.tools || 'none'}`));
+    
   } catch (error) {
     console.error(chalk.red('Error:'), error.message);
     process.exit(1);
