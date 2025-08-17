@@ -5,6 +5,57 @@
 1. **Always utilize the JetBrains Marketplace Code Protocol (MCP)** whenever possible.
 2. **Limit all new code contributions and code updates** to a maximum of 200 lines per change. This helps maintain code quality, reviewability, and project manageability.
 3. **ALWAYS use and update the Neo4j Knowledge Graph** for persistent project knowledge.
+4. **ALWAYS follow Strategic Git Workflow practices** for maintainable project history.
+
+## Strategic Git Workflow
+
+### Before Starting Work:
+- Always check `git status` and `git log --oneline -5` to understand current state
+- Create feature branches for non-trivial changes: `git checkout -b feature/description`
+- Search Neo4j memory for related work to avoid conflicts
+
+### During Development:
+- Stage changes incrementally: `git add -p` for selective staging
+- Make atomic commits - one logical change per commit
+- Keep commits under 200 lines per rule #2 (supports reviewability)
+- Use present tense commit messages: "Add feature" not "Added feature"
+
+### Commit Message Standards:
+- Format: `[Type] Brief description (max 50 chars)`
+- Types: feat, fix, docs, refactor, test, chore, cleanup
+- Always include Claude Code attribution footer
+- Reference issue/task numbers when applicable
+
+### Before Pushing:
+- Review changes: `git diff --cached` before committing
+- Check for sensitive data: never commit credentials, keys, or large files
+- Validate .gitignore effectiveness: `git status` should show clean working tree
+- Update Neo4j memory with significant changes before pushing
+
+### Recovery and Safety:
+- Document complex git operations in Neo4j for future reference
+- Use `git reflog` for recovery - never panic with destructive resets
+- Create backup branches before risky operations: `git branch backup-$(date +%Y%m%d)`
+- Prefer `git revert` over `git reset` for shared history
+
+### Example Workflow:
+```bash
+# Good workflow pattern
+git status && git log --oneline -3
+git add src/new-feature.js
+git commit -m "feat: Add user authentication validation
+
+- Implement password strength checking
+- Add email format validation  
+- Include error message localization
+
+🤖 Generated with [Claude Code](https://claude.ai/code)
+Co-Authored-By: Claude <noreply@anthropic.com>"
+
+# Update Neo4j memory before pushing
+# Then push with verification
+git push origin feature/user-auth
+```
 
 ## Project Structure
 
