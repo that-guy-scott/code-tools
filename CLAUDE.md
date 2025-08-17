@@ -6,6 +6,43 @@
 2. **Limit all new code contributions and code updates** to a maximum of 200 lines per change. This helps maintain code quality, reviewability, and project manageability.
 3. **ALWAYS use and update the Neo4j Knowledge Graph** for persistent project knowledge.
 
+## Project Structure
+
+The repository follows a clean, organized structure:
+
+```
+code-tools/
+├── CLAUDE.md                   # Claude Code configuration (must be in root)
+├── package.json                # Node.js dependencies
+├── bin/                        # Executable scripts and utilities
+├── src/                        # Source code (ollama-cli.js, gemini-cli.js)
+├── config/                     # All configuration files organized by service
+│   ├── nginx/                  # Nginx proxy configurations
+│   ├── postgres/               # PostgreSQL configuration files
+│   ├── qdrant/                 # Qdrant vector database config
+│   └── redis/                  # Redis cache configuration
+├── docker/                     # Docker and orchestration files
+│   ├── compose/                # Docker Compose files
+│   ├── configs/                # Docker service configurations
+│   └── scripts/                # Docker management scripts
+├── mcp/                        # MCP server configurations and tools
+│   ├── setup/                  # MCP setup automation scripts
+│   ├── tools/                  # MCP utility and testing tools
+│   └── configs/                # MCP server configurations
+├── scripts/                    # Project automation and utility scripts
+├── docs/                       # Project documentation (README, plans, guides)
+├── backups/                    # Database backup storage
+├── data/                       # Runtime data (excluded from git)
+└── temp/                       # Temporary files and testing
+```
+
+**Key Organizational Principles:**
+- **Clean root directory**: Only essential files (CLAUDE.md, package.json)
+- **Service-specific configs**: All configurations organized by service type
+- **Functional grouping**: Scripts, docs, and MCP tools in dedicated directories
+- **Docker organization**: All containerization files under docker/
+- **No duplicates**: Each file has a single, logical location
+
 ## Neo4j Knowledge Graph System - CRITICAL USAGE INSTRUCTIONS
 
 ### Rule: ALWAYS Use Neo4j Knowledge Graph for Project Context
@@ -450,8 +487,8 @@ MATCH (mcp:Entity {entityType: "mcp_server"})-[r:RELATES]->(dep) RETURN mcp.name
 ### Migration from JSON Memory
 
 **Migration Process:**
-1. **Backup existing memory**: `./migrate-to-neo4j.sh` automatically backs up
-2. **Run migration**: `./migrate-to-neo4j.sh` 
+1. **Backup existing memory**: `./scripts/migrate-memory-to-neo4j.js` automatically backs up
+2. **Run migration**: `./scripts/migrate-memory-to-neo4j.js` 
 3. **Verify data**: Check Neo4j Browser for successful import
 4. **Update workflows**: Start using neo4j-memory instead of old memory MCP
 
@@ -555,7 +592,7 @@ curl http://localhost:7474
 docker logs code-tools-neo4j
 
 # Restart Neo4j if needed
-docker-compose -f docker-compose.databases.yml restart neo4j
+docker-compose -f docker/compose/docker-compose.databases.yml restart neo4j
 ```
 
 **2. Environment Variable Mismatch**
