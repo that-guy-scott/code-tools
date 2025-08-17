@@ -6,3 +6,28 @@ node_modules/
 
 # IDE files
 .idea/
+
+# MCP-related files
+venv-mcp/
+.mcp-*.log
+mcp-test-*.js
+.mcp-backup/
+
+# Database files (development)
+dev.db
+*.sqlite
+*.sqlite3
+
+# Neo4j database files
+data/neo4j/
+data/qdrant/
+data/postgres/
+
+# Large binary files
+*.jar
+*.db
+
+# Temporary files
+*.tmp
+*.log
+.DS_Store
