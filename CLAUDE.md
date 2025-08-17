@@ -23,7 +23,7 @@
 ### Commit Message Standards:
 - Format: `[Type] Brief description (max 50 chars)`
 - Types: feat, fix, docs, refactor, test, chore, cleanup
-- Always include Claude Code attribution footer
+- Always exclude Claude Code attribution footer
 - Reference issue/task numbers when applicable
 
 ### Before Pushing:

@@ -1,0 +1,198 @@
+{
+  "summary": {
+    "totalTests": 3,
+    "averageScore": 96,
+    "topPerformer": {
+      "file": "ollama-gpt-oss-result.json",
+      "provider": "ollama",
+      "model": "gpt-oss:latest",
+      "score": 100,
+      "breakdown": {
+        "correctness": 25,
+        "error_handling": 25,
+        "test_cases": 25,
+        "code_quality": 25
+      },
+      "details": {
+        "correctness": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Function works correctly and solves the problem"
+        },
+        "error_handling": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Proper error handling for edge cases"
+        },
+        "test_cases": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Comprehensive test cases provided"
+        },
+        "code_quality": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Code quality, documentation, and best practices"
+        }
+      },
+      "metadata": {
+        "responseTime": 25942,
+        "tokens": 1791
+      },
+      "timestamp": "2025-08-17T17:25:51.763Z"
+    },
+    "scoringCriteria": {
+      "correctness": {
+        "weight": 25,
+        "description": "Function works correctly and solves the problem"
+      },
+      "error_handling": {
+        "weight": 25,
+        "description": "Proper error handling for edge cases"
+      },
+      "test_cases": {
+        "weight": 25,
+        "description": "Comprehensive test cases provided"
+      },
+      "code_quality": {
+        "weight": 25,
+        "description": "Code quality, documentation, and best practices"
+      }
+    }
+  },
+  "results": [
+    {
+      "file": "ollama-gpt-oss-result.json",
+      "provider": "ollama",
+      "model": "gpt-oss:latest",
+      "score": 100,
+      "breakdown": {
+        "correctness": 25,
+        "error_handling": 25,
+        "test_cases": 25,
+        "code_quality": 25
+      },
+      "details": {
+        "correctness": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Function works correctly and solves the problem"
+        },
+        "error_handling": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Proper error handling for edge cases"
+        },
+        "test_cases": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Comprehensive test cases provided"
+        },
+        "code_quality": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Code quality, documentation, and best practices"
+        }
+      },
+      "metadata": {
+        "responseTime": 25942,
+        "tokens": 1791
+      },
+      "timestamp": "2025-08-17T17:25:51.763Z"
+    },
+    {
+      "file": "ollama-qwen-coder-result.json",
+      "provider": "ollama",
+      "model": "qwen3-coder:latest",
+      "score": 98,
+      "breakdown": {
+        "correctness": 25,
+        "error_handling": 25,
+        "test_cases": 23,
+        "code_quality": 25
+      },
+      "details": {
+        "correctness": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Function works correctly and solves the problem"
+        },
+        "error_handling": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Proper error handling for edge cases"
+        },
+        "test_cases": {
+          "score": 23,
+          "maxScore": 25,
+          "percentage": 92,
+          "description": "Comprehensive test cases provided"
+        },
+        "code_quality": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Code quality, documentation, and best practices"
+        }
+      },
+      "metadata": {
+        "responseTime": 16809,
+        "tokens": 1578
+      },
+      "timestamp": "2025-08-17T17:26:29.590Z"
+    },
+    {
+      "file": "gemini-2.0-flash-result.json",
+      "provider": "gemini",
+      "model": "gemini-2.0-flash",
+      "score": 90,
+      "breakdown": {
+        "correctness": 17,
+        "error_handling": 25,
+        "test_cases": 23,
+        "code_quality": 25
+      },
+      "details": {
+        "correctness": {
+          "score": 17,
+          "maxScore": 25,
+          "percentage": 68,
+          "description": "Function works correctly and solves the problem"
+        },
+        "error_handling": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Proper error handling for edge cases"
+        },
+        "test_cases": {
+          "score": 23,
+          "maxScore": 25,
+          "percentage": 92,
+          "description": "Comprehensive test cases provided"
+        },
+        "code_quality": {
+          "score": 25,
+          "maxScore": 25,
+          "percentage": 100,
+          "description": "Code quality, documentation, and best practices"
+        }
+      },
+      "metadata": {
+        "responseTime": null,
+        "tokens": null
+      },
+      "timestamp": "2025-08-17T17:42:13.472Z"
+    }
+  ]
+}
