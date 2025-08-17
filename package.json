@@ -1,12 +1,16 @@
 {
-  "name": "ollama-cli",
-  "version": "1.0.0",
-  "description": "Simple command line utility for interacting with Ollama LLM",
-  "main": "ollama-cli.js",
+  "name": "llm-cli",
+  "version": "2.0.0",
+  "description": "Universal CLI for multiple LLM providers with MCP integration",
+  "main": "llm-cli.js",
   "type": "module",
   "scripts": {
-    "start": "node ollama-cli.js",
-    "gemini": "node gemini-cli.js"
+    "llm": "node llm-cli.js",
+    "ollama": "node llm-cli.js --provider ollama",
+    "gemini": "node llm-cli.js --provider gemini",
+    "start": "node llm-cli.js",
+    "legacy:ollama": "node src/ollama-cli.js",
+    "legacy:gemini": "node src/gemini-cli.js"
   },
   "dependencies": {
     "ollama": "^0.5.9",
@@ -15,7 +19,7 @@
     "@google/generative-ai": "^0.21.0",
     "dotenv": "^16.4.5"
   },
-  "keywords": ["ollama", "cli", "llm", "ai"],
+  "keywords": ["llm", "cli", "ollama", "gemini", "openai", "anthropic", "mcp", "ai"],
   "author": "",
   "license": "MIT"
 }
