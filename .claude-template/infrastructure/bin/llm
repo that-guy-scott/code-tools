@@ -1,0 +1,56 @@
+#!/bin/bash
+# Local Universal LLM CLI v2 Launcher for Project
+set -e
+
+# Get the script directory (should be .claude/infrastructure/bin/)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAUDE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$CLAUDE_DIR/.." && pwd)"
+LLM_CLI_PATH="$SCRIPT_DIR/llm-cli.js"
+
+# Project information
+PROJECT_NAME="$(basename "$PROJECT_ROOT")"
+
+# Colors for output
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+
+# Check if databases are running
+check_databases() {
+    if ! docker ps --format "table {{.Names}}" | grep -q "$PROJECT_NAME-claude-postgres"; then
+        echo -e "${YELLOW}Warning: Project databases don't appear to be running.${NC}"
+        echo -e "Start them with: ${GREEN}cd .claude && docker-compose up -d${NC}"
+        echo ""
+    fi
+}
+
+# Verify CLI exists
+if [ ! -f "$LLM_CLI_PATH" ]; then
+    echo -e "${RED}Error: LLM CLI not found at $LLM_CLI_PATH${NC}"
+    echo "Please ensure the Claude infrastructure is properly set up."
+    exit 1
+fi
+
+# Check Node.js
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}Error: Node.js not found.${NC}"
+    echo "Please install Node.js to use the LLM CLI."
+    exit 1
+fi
+
+# Show project context for first few runs
+if [ "$1" != "--quiet" ]; then
+    echo -e "${GREEN}🚀 Claude Local CLI${NC} - Project: ${YELLOW}$PROJECT_NAME${NC}"
+    check_databases
+fi
+
+# Set environment for this project
+export CLAUDE_PROJECT_NAME="$PROJECT_NAME"
+export CLAUDE_PROJECT_ROOT="$PROJECT_ROOT"
+export CLAUDE_LOCAL_MODE="true"
+
+# Change to project root and run CLI
+cd "$PROJECT_ROOT"
+node "$LLM_CLI_PATH" "$@"

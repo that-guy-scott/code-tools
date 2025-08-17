@@ -52,6 +52,29 @@ cd code-tools
 
 This sets up 9 MCP servers providing IDE integration, database connectivity, file operations, memory persistence, and development tools.
 
+## 🌟 **NEW: Local Claude Infrastructure (Recommended)**
+
+**Want isolated, project-specific Claude setups?** Use the new local infrastructure approach:
+
+```bash
+# For any project - get complete Claude infrastructure locally
+cp -r /path/to/code-tools/.claude-template /your-project/.claude
+cd /your-project
+./setup-claude-local.sh
+
+# Each project gets its own isolated environment!
+./.claude/bin/llm "Hello from this project!"
+```
+
+**✅ Benefits:**
+- **🔒 Perfect Isolation** - No cross-project memory sharing
+- **👥 Team Collaboration** - Identical setup for all team members  
+- **📦 Portable** - Everything needed is in the project directory
+- **⚡ Zero Conflicts** - Multiple projects run simultaneously
+- **🧹 Clean** - No global state or configuration complexity
+
+**[📖 Full Local Setup Guide →](README-LOCAL-CLAUDE.md)**
+
 ### Quick Commands
 ```bash
 # Setup and verification
@@ -85,6 +108,161 @@ node src/semantic-engine.js search      # Semantic search
 node src/knowledge-fusion.js search     # Hybrid graph + semantic search
 node src/knowledge-fusion.js patterns   # Pattern discovery
 ```
+
+## 🚀 Deployment Pipeline
+
+This project features a sophisticated **3-stage deployment pipeline** that takes you from development to global production deployment with comprehensive safety features.
+
+### 📋 Deployment Overview
+
+| Stage | Location | Purpose | Command |
+|-------|----------|---------|---------|
+| **Development** | `./code-tools/` | Development and testing | `git clone && npm install` |
+| **Staging** | `~/.claude-dev/` | Safe testing environment | `./scripts/build-staging.sh` |
+| **Production** | `~/.claude/` | Global CLI access | `deploy-to-production.sh` |
+
+### 🎯 Complete Deployment Workflow
+
+**From git clone to global `llm` command access:**
+
+```bash
+# 1. Development Setup
+git clone <repository-url>
+cd code-tools
+npm install
+./bin/setup-all-mcp.sh              # Setup MCP ecosystem
+
+# 2. Build Staging Environment
+./scripts/build-staging.sh          # Creates ~/.claude-dev
+
+# 3. Validate Staging
+~/.claude-dev/global-infrastructure/scripts/validate-staging.sh
+
+# 4. Deploy to Production
+~/.claude-dev/global-infrastructure/scripts/deploy-to-production.sh
+
+# 5. Global Access (Available Anywhere!)
+llm --version                        # Universal LLM CLI v2.0.0
+llm "Hello world"                    # Query any LLM provider
+llm --list-providers                 # Show available providers
+```
+
+### 🛠️ Staging Builder (`./scripts/build-staging.sh`)
+
+The staging builder creates a complete isolated environment for testing:
+
+**Available Options:**
+```bash
+./scripts/build-staging.sh          # Standard build (preserves existing)
+./scripts/build-staging.sh --clean  # Clean rebuild (removes existing)
+./scripts/build-staging.sh --update # Update components only
+./scripts/build-staging.sh --dry-run # Preview without changes
+```
+
+**What it Creates:**
+- **Base Environment**: Copies Claude Code settings, credentials, projects from `~/.claude`
+- **Global Infrastructure**: Universal LLM CLI v2 with global launcher
+- **MCP Integration**: All 9 MCP servers configured
+- **Database Stack**: Docker configurations for PostgreSQL, Redis, Qdrant, Neo4j
+- **Dependencies**: Node.js packages and Python environments
+- **Documentation**: Complete management and troubleshooting guides
+
+### 📁 Directory Structure Created
+
+```
+~/.claude-dev/                      # 🎭 Staging Environment
+├── settings.json                   # Copied from ~/.claude
+├── .credentials.json              # Copied from ~/.claude (if exists)
+├── projects/                      # Copied from ~/.claude (if exists)
+├── todos/                         # Copied from ~/.claude (if exists)
+├── .mcp.json                      # Global MCP configuration
+└── global-infrastructure/
+    ├── bin/
+    │   ├── llm                    # 🌟 Global CLI launcher
+    │   └── llm-cli.js             # Universal LLM CLI v2
+    ├── docs/                      # Complete documentation
+    ├── scripts/
+    │   ├── validate-staging.sh    # Staging validation
+    │   ├── deploy-to-production.sh # Production deployment
+    │   ├── manage-databases.sh    # Database management
+    │   └── backup-restore.sh      # Backup/restore system
+    ├── mcp/                       # MCP configurations
+    ├── databases/                 # Database stack config
+    ├── package.json               # Node.js dependencies
+    └── node_modules/              # Installed dependencies
+
+~/.claude/                         # 🚀 Production Environment (After Deployment)
+└── [Identical structure to staging with global PATH integration]
+```
+
+### ✅ Validation and Safety Features
+
+**Comprehensive Validation:**
+```bash
+# Staging validation (run after build-staging.sh)
+~/.claude-dev/global-infrastructure/scripts/validate-staging.sh
+
+# What it checks:
+# ✅ Key files existence
+# ✅ CLI functionality  
+# ✅ MCP configuration syntax
+# ✅ Script permissions
+# ✅ Node.js dependencies
+# ✅ Database connectivity
+```
+
+**Safety Features:**
+- **🛡️ Never modifies production** `~/.claude` during staging
+- **💾 Automatic backup** of existing environments before changes
+- **🧪 Comprehensive validation** ensures everything works before deployment
+- **👀 Dry-run capability** for safe preview of all operations
+- **🚨 Clear error messages** with troubleshooting guidance
+
+### 🌐 Global CLI Access
+
+After production deployment, the `llm` command becomes globally available:
+
+```bash
+# Available from any directory after deployment
+llm --version                        # Universal LLM CLI v2.0.0
+llm --list-providers                # ollama, gemini, openai, anthropic
+llm --list-models                   # All available models
+llm --list-tools                    # 9+ MCP tools available
+
+# Multi-provider usage
+llm --provider ollama "Write code"   # Ollama models
+llm --provider gemini "Analyze data" # Gemini models
+llm --output json "prompt" | jq     # JSON output for scripting
+
+# Global database and tool access
+llm "Create a PostgreSQL table"     # Uses MCP database tools
+llm "Search my project files"       # Uses semantic search
+llm "Analyze this codebase"         # Uses all MCP capabilities
+```
+
+### 🔧 Troubleshooting Deployment
+
+**Common Issues:**
+- **"Script must be run from code-tools directory"**: `cd` to project root first
+- **"Node.js not found"**: Install Node.js for full functionality
+- **"CLI test failed"**: Run `npm install` in staging directory
+- **"Validation errors"**: Use `--clean` flag to rebuild from scratch
+
+**Recovery Options:**
+```bash
+./scripts/build-staging.sh --clean  # Clean rebuild
+./scripts/build-staging.sh --dry-run # Preview changes
+docker-compose -f docker/compose/docker-compose.databases.yml up -d # Start databases
+```
+
+**Verification Commands:**
+```bash
+docker ps                           # Check database services
+claude mcp list                     # Verify MCP connections  
+node ~/.claude-dev/global-infrastructure/bin/llm-cli.js --version # Test CLI
+```
+
+---
 
 ## 📁 Project Structure
 
@@ -131,12 +309,48 @@ code-tools/
 │   ├── README.md                # This file
 │   ├── CLAUDE.md                # Claude usage instructions
 │   └── img/                     # Project images
-├── scripts/                      # Utility scripts
+├── scripts/                      # 🚀 Deployment & Utility Scripts
+│   ├── build-staging.sh         # Staging environment builder
+│   ├── neo4j-backup.sh          # Neo4j backup system
+│   └── migrate-memory-to-neo4j.js # Memory migration tools
 ├── data/                         # Data directories
 ├── backups/                      # Backup directories
 ├── temp/                         # Legacy/temporary files
 ├── llmv2.tech.spec.md           # 🆕 Universal LLM CLI v2 Technical Specification
+├── README-STAGING.md            # 🚀 Staging deployment guide
+├── README-LOCAL-CLAUDE.md       # 🌟 Local infrastructure guide
+├── .claude-template/            # 🌟 Local Claude infrastructure template
+│   ├── README-CLAUDE.md         # Local setup instructions
+│   ├── .mcp.json                # Template MCP configuration
+│   ├── docker-compose.yml       # Local database stack
+│   ├── settings.json            # Template settings
+│   └── infrastructure/          # Complete local infrastructure
+├── setup-claude-local.sh        # 🌟 One-command local setup
 └── package.json                  # Node.js project config
+
+# 🚀 Deployment Environments (Created by Pipeline)
+
+~/.claude-dev/                   # 🎭 Staging Environment
+├── settings.json                # Copied from ~/.claude
+├── .credentials.json           # API keys and credentials
+├── projects/                   # Project conversation history
+├── todos/                      # Global todo management
+├── .mcp.json                   # Global MCP configuration
+└── global-infrastructure/
+    ├── bin/
+    │   ├── llm                 # 🌟 Global CLI launcher
+    │   └── llm-cli.js          # Universal LLM CLI v2
+    ├── docs/                   # Complete documentation
+    ├── scripts/                # Deployment & management scripts
+    ├── mcp/                    # MCP configurations
+    ├── databases/              # Database stack configuration
+    ├── package.json            # Node.js dependencies
+    └── node_modules/           # Installed dependencies
+
+~/.claude/                      # 🚀 Production Environment
+├── [Identical structure to staging]
+└── global-infrastructure/
+    └── bin/llm                 # 🌍 Globally accessible CLI
 ```
 
 ## 🛠️ Available Tools
@@ -150,7 +364,7 @@ Revolutionary universal command-line interface supporting multiple LLM providers
 - **Universal Tool Calling**: Access JetBrains IDE, databases, GitHub, Docker, and more
 - **Dynamic Model Discovery**: Automatically lists available models per provider
 - **JSON Output**: Perfect for automation and scripting
-- **Configuration Management**: Multiple configuration layers with precedence
+- **🌟 Local & Global Modes**: Run globally or project-isolated
 
 **🏆 Tested Performance:**
 - **Ollama gpt-oss:latest**: 100/100 (Perfect score)
@@ -159,23 +373,20 @@ Revolutionary universal command-line interface supporting multiple LLM providers
 
 **Usage:**
 ```bash
-# Universal interface (auto-detects best provider)
-node llm-cli.js "Write a Python function for sorting"
+# 🌟 Local Mode (Recommended - Project Isolated)
+./.claude/bin/llm "Write a Python function for sorting"
+./.claude/bin/llm --provider ollama --model qwen3-coder:latest "Write code"
+./.claude/bin/llm --list-tools        # Show project MCP tools
+./.claude/bin/llm --project-info      # Show local project info
 
-# Provider-specific usage
-node llm-cli.js --provider ollama --model qwen3-coder:latest "Write code"
+# Global Mode (Development Environment)
+node llm-cli.js "Write a Python function for sorting"
 node llm-cli.js --provider gemini --model gemini-2.0-flash "Analyze this"
 
-# Discovery commands
-node llm-cli.js --list-providers    # Show: ollama, gemini, openai, anthropic
-node llm-cli.js --list-models       # Show all available models
-node llm-cli.js --list-tools        # Show MCP tools available
-
-# JSON output for automation
-node llm-cli.js --output json "prompt" | jq '.response'
-
-# Configuration
-node llm-cli.js --config-precedence  # Show config layer order
+# Discovery commands (both modes)
+llm --list-providers    # Show: ollama, gemini, openai, anthropic
+llm --list-models       # Show all available models
+llm --output json "prompt" | jq '.response'  # JSON automation
 ```
 
 ### 📊 LLM Testing & Evaluation System - **NEW!**
@@ -248,16 +459,28 @@ echo "Hello" | node src/gemini-cli.js --stdin
    npm install
    ```
 
-2. **For Ollama CLI:**
+2. **Setup MCP ecosystem:**
+   ```bash
+   ./bin/setup-all-mcp.sh       # Install all 9 MCP servers
+   ./bin/verify-mcp-setup.sh    # Verify connections
+   ```
+
+3. **For Ollama CLI:**
     - Ensure Ollama is running locally
     - Default host: `http://172.31.240.1:11434`
 
-3. **For Gemini CLI:**
+4. **For Gemini CLI:**
     - Create a `.env` file with your Google AI API key:
       ```
       GOOGLE_AI_API_KEY=your_api_key_here
       ```
     - Get your API key from: https://aistudio.google.com/app/apikey
+
+5. **🚀 Deploy for Global Access (Optional):**
+   ```bash
+   ./scripts/build-staging.sh    # Build staging environment
+   # Validate and deploy to production (see Deployment Pipeline section)
+   ```
 
 ## 🔧 CLI Options
 
@@ -288,6 +511,28 @@ cat document.txt | node src/gemini-cli.js --stdin "Summarize this"
 # Use npm scripts
 npm run gemini "What is the meaning of life?"
 npm start "Hello from Ollama"
+
+# 🚀 Global deployment examples (after deployment)
+llm "Write a Python function for sorting"     # Global access
+llm --provider ollama "Explain algorithms"    # Provider-specific
+llm --list-models                             # Discovery commands
+```
+
+### 🧪 Deployment Verification
+
+```bash
+# Verify staging environment
+~/.claude-dev/global-infrastructure/scripts/validate-staging.sh
+
+# Test global CLI after production deployment
+llm --version                                 # Should show Universal LLM CLI v2.0.0
+llm --list-providers                         # Should show: ollama, gemini, openai, anthropic
+llm --list-tools                             # Should show 9+ MCP tools
+
+# Database and MCP verification
+docker ps                                    # Check database services
+claude mcp list                              # Verify all MCP connections (✅ Connected)
+node ~/.claude-dev/global-infrastructure/bin/llm-cli.js --version # Direct CLI test
 ```
 
 ## 🧠 Enhanced Semantic Knowledge System

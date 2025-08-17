@@ -1,0 +1,60 @@
+{
+  "mcpServers": {
+    "neo4j-agent-memory": {
+      "command": "npx",
+      "args": ["-y", "@knowall-ai/mcp-neo4j-agent-memory"],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "dev_password_123"
+      }
+    },
+    "neo4j-server": {
+      "command": "npx",
+      "args": ["-y", "@alanse/mcp-neo4j-server"],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USER": "neo4j", 
+        "NEO4J_PASSWORD": "dev_password_123"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-postgres-full-access",
+        "postgresql://claude:dev_password_123@localhost:5432/PROJECT_NAME_claude_dev"
+      ]
+    },
+    "redis": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-redis",
+        "redis://localhost:6379"
+      ]
+    },
+    "qdrant": {
+      "command": "./infrastructure/venv-mcp/bin/mcp-server-qdrant",
+      "env": {
+        "QDRANT_URL": "http://localhost:6333",
+        "COLLECTION_NAME": "project-memory"
+      }
+    },
+    "github": {
+      "command": "npx", 
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-puppeteer"]
+    },
+    "docker-mcp": {
+      "command": "uvx",
+      "args": ["mcp-server-docker"]
+    }
+  }
+}
