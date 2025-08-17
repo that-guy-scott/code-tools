@@ -345,6 +345,162 @@ class MCPManager {
   }
 }
 
+class ToolManager {
+  constructor(mcpManager) {
+    this.mcpManager = mcpManager;
+    this.activeTools = [];
+    this.toolResults = new Map();
+  }
+
+  async discoverTools(toolFilter = null) {
+    try {
+      this.activeTools = await this.mcpManager.getAvailableTools(toolFilter);
+      return this.activeTools;
+    } catch (error) {
+      console.error(chalk.red('Error discovering tools:'), error.message);
+      return [];
+    }
+  }
+
+  filterTools(toolList, filterCriteria) {
+    if (!filterCriteria || filterCriteria.length === 0) {
+      return toolList;
+    }
+
+    if (typeof filterCriteria === 'string') {
+      filterCriteria = filterCriteria.split(',').map(s => s.trim());
+    }
+
+    return toolList.filter(tool => {
+      return filterCriteria.some(criteria => {
+        return tool.server === criteria || 
+               tool.name.includes(criteria) ||
+               tool.description.toLowerCase().includes(criteria.toLowerCase());
+      });
+    });
+  }
+
+  async executeFunction(functionCall, context = {}) {
+    try {
+      const { name, arguments: args } = functionCall;
+      
+      if (!name.includes('__')) {
+        throw new Error(`Invalid function call format. Expected 'server__function' but got '${name}'`);
+      }
+
+      const [serverName, functionName] = name.split('__', 2);
+      
+      if (!this.mcpManager.mcpServers[serverName]) {
+        throw new Error(`MCP server '${serverName}' not found`);
+      }
+
+      console.log(chalk.blue(`Executing ${name} on ${serverName} server...`));
+      
+      const result = await this.executeMCPFunction(serverName, functionName, args, context);
+      
+      this.toolResults.set(name, {
+        timestamp: new Date().toISOString(),
+        result,
+        success: true
+      });
+
+      return result;
+    } catch (error) {
+      console.error(chalk.red(`Tool execution error for ${functionCall.name}:`), error.message);
+      
+      this.toolResults.set(functionCall.name, {
+        timestamp: new Date().toISOString(),
+        error: error.message,
+        success: false
+      });
+
+      throw error;
+    }
+  }
+
+  async executeMCPFunction(serverName, functionName, args, context) {
+    console.log(chalk.yellow(`🚧 MCP function calling not yet implemented`));
+    console.log(chalk.gray(`Server: ${serverName}, Function: ${functionName}`));
+    console.log(chalk.gray(`Args: ${JSON.stringify(args, null, 2)}`));
+    
+    return {
+      status: 'placeholder',
+      message: `Function ${functionName} on ${serverName} would be executed with args: ${JSON.stringify(args)}`,
+      timestamp: new Date().toISOString()
+    };
+  }
+
+  getToolResults(toolName = null) {
+    if (toolName) {
+      return this.toolResults.get(toolName);
+    }
+    return Object.fromEntries(this.toolResults);
+  }
+
+  async validateTools(tools) {
+    const validation = {
+      valid: [],
+      invalid: [],
+      warnings: []
+    };
+
+    for (const tool of tools) {
+      if (!tool.name || !tool.server) {
+        validation.invalid.push({
+          tool,
+          reason: 'Missing required name or server field'
+        });
+        continue;
+      }
+
+      if (!this.mcpManager.mcpServers[tool.server]) {
+        validation.warnings.push({
+          tool,
+          reason: `Server '${tool.server}' not configured in MCP`
+        });
+      }
+
+      validation.valid.push(tool);
+    }
+
+    return validation;
+  }
+
+  formatToolsForProvider(tools, providerType) {
+    return tools.map(tool => {
+      switch (providerType) {
+        case 'ollama':
+          return {
+            type: 'function',
+            function: {
+              name: `${tool.server}__${tool.name}`,
+              description: tool.description,
+              parameters: tool.parameters || {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            }
+          };
+        case 'gemini':
+          return {
+            functionDeclarations: [{
+              name: `${tool.server}__${tool.name}`,
+              description: tool.description,
+              parameters: tool.parameters || {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            }]
+          };
+        default:
+          return tool;
+      }
+    });
+  }
+}
+
 program
   .name('llm-cli')
   .description('Universal CLI for multiple LLM providers with MCP integration')
