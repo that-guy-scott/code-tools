@@ -251,6 +251,100 @@ class ConfigManager {
   }
 }
 
+class MCPManager {
+  constructor() {
+    this.mcpServers = {};
+    this.discoveredTools = {};
+    this.connectionStatus = {};
+  }
+
+  async discoverServers(mcpConfigPath = './.mcp.json') {
+    try {
+      if (!existsSync(mcpConfigPath)) {
+        console.warn(chalk.yellow(`Warning: MCP config file not found at ${mcpConfigPath}`));
+        return {};
+      }
+
+      const mcpConfig = JSON.parse(readFileSync(mcpConfigPath, 'utf8'));
+      this.mcpServers = mcpConfig.mcpServers || {};
+      
+      console.log(chalk.blue(`Discovered ${Object.keys(this.mcpServers).length} MCP servers:`));
+      for (const [name, config] of Object.entries(this.mcpServers)) {
+        console.log(chalk.gray(`  • ${name}: ${config.command} ${config.args?.join(' ') || ''}`));
+      }
+
+      return this.mcpServers;
+    } catch (error) {
+      console.error(chalk.red('Error loading MCP configuration:'), error.message);
+      return {};
+    }
+  }
+
+  async healthCheck(serverName) {
+    if (!this.mcpServers[serverName]) {
+      return { status: 'not_found', message: `Server ${serverName} not found` };
+    }
+
+    try {
+      return { status: 'configured', message: `Server ${serverName} is configured` };
+    } catch (error) {
+      return { status: 'error', message: error.message };
+    }
+  }
+
+  async getAvailableTools(serverFilter = null) {
+    const tools = [];
+    const availableServers = serverFilter 
+      ? serverFilter.split(',').filter(name => this.mcpServers[name])
+      : Object.keys(this.mcpServers);
+
+    for (const serverName of availableServers) {
+      const serverTools = this.getServerToolsPlaceholder(serverName);
+      tools.push(...serverTools);
+    }
+
+    return tools;
+  }
+
+  getServerToolsPlaceholder(serverName) {
+    const toolMap = {
+      'jetbrains': [
+        { name: 'get_file_text', description: 'Read file contents from IDE', server: 'jetbrains' },
+        { name: 'list_files', description: 'List files in project directory', server: 'jetbrains' }
+      ],
+      'github': [
+        { name: 'get_repository', description: 'Get repository information', server: 'github' },
+        { name: 'create_issue', description: 'Create GitHub issue', server: 'github' }
+      ],
+      'postgres': [
+        { name: 'execute_query', description: 'Execute SQL query', server: 'postgres' }
+      ],
+      'neo4j-agent-memory': [
+        { name: 'search_memories', description: 'Search knowledge graph', server: 'neo4j-agent-memory' },
+        { name: 'create_memory', description: 'Create memory entity', server: 'neo4j-agent-memory' }
+      ]
+    };
+
+    return toolMap[serverName] || [
+      { name: `${serverName}_placeholder`, description: `Placeholder tool for ${serverName}`, server: serverName }
+    ];
+  }
+
+  formatToolForProvider(tool, providerType) {
+    const baseFormat = {
+      name: `${tool.server}__${tool.name}`,
+      description: tool.description,
+      parameters: {
+        type: 'object',
+        properties: {},
+        required: []
+      }
+    };
+
+    return baseFormat;
+  }
+}
+
 program
   .name('llm-cli')
   .description('Universal CLI for multiple LLM providers with MCP integration')
