@@ -613,9 +613,62 @@ async function main() {
       process.exit(1);
     }
     
-    console.log(chalk.yellow('🚧 LLM generation and tool calling implementation coming in next commits...'));
-    console.log(chalk.blue(`Would generate response for prompt: "${prompt.substring(0, 50)}${prompt.length > 50 ? '...' : ''}"`));
-    console.log(chalk.gray(`Provider: ${provider}, Tools: ${options.tools || 'none'}`));
+    console.log(chalk.blue(`Generating response with ${provider}...`));
+    
+    try {
+      let providerInstance;
+      if (provider === 'ollama') {
+        providerInstance = new OllamaProvider(config.providers.ollama);
+      } else if (provider === 'gemini') {
+        providerInstance = new GeminiProvider(config.providers.gemini);
+      } else {
+        throw new Error(`Provider ${provider} not yet implemented`);
+      }
+      
+      const model = options.model || config.providers[provider]?.defaultModel;
+      console.log(chalk.gray(`Using model: ${model}`));
+      
+      const generateOptions = {
+        model,
+        temperature: options.temperature,
+        maxTokens: options.maxTokens,
+        topP: options.topP,
+        topK: options.topK,
+        stream: options.stream
+      };
+      
+      if (options.tools && !options.noTools) {
+        const tools = await toolManager.discoverTools(options.tools);
+        if (tools.length > 0) {
+          console.log(chalk.blue(`Using ${tools.length} tools: ${tools.map(t => t.server).join(', ')}`));
+          generateOptions.tools = tools;
+        }
+      }
+      
+      const response = await providerInstance.generateResponse(prompt, generateOptions);
+      
+      if (options.output === 'json') {
+        console.log(JSON.stringify({
+          provider,
+          model,
+          prompt,
+          response: response.response?.text || response.text || response,
+          timestamp: new Date().toISOString()
+        }, null, 2));
+      } else if (options.output === 'raw') {
+        console.log(response.response?.text || response.text || response);
+      } else {
+        console.log(chalk.green('\n📝 Response:'));
+        console.log(response.response?.text || response.text || response);
+      }
+      
+    } catch (error) {
+      console.error(chalk.red('Generation failed:'), error.message);
+      if (options.debug) {
+        console.error(chalk.gray(error.stack));
+      }
+      process.exit(1);
+    }
     
   } catch (error) {
     console.error(chalk.red('Error:'), error.message);
