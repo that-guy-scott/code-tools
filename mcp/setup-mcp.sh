@@ -48,7 +48,32 @@ echo -e "  • Copy ${YELLOW}mcp/servers.json${NC} to your Claude Code settings"
 echo -e "  • Update PROJECT_NAME in the PostgreSQL connection string"
 echo -e "  • Add your GitHub token to the GitHub server config"
 echo ""
+echo -e "${YELLOW}⚠️  Configuration Validation:${NC}"
+
+# Check if .mcp.json exists and validate Neo4j config
+if [ -f ".mcp.json" ]; then
+    echo -e "  • Found .mcp.json configuration"
+    
+    # Check Neo4j agent memory configuration
+    if grep -q '"neo4j-agent-memory"' .mcp.json; then
+        if grep -A 10 '"neo4j-agent-memory"' .mcp.json | grep -q '"env"'; then
+            echo -e "  • ${GREEN}✅ Neo4j agent memory: Environment variables configured${NC}"
+        else
+            echo -e "  • ${YELLOW}⚠️  Neo4j agent memory: Using CLI args (should use env vars)${NC}"
+            echo -e "    ${YELLOW}Update to use environment variables for proper connection${NC}"
+        fi
+    fi
+else
+    echo -e "  • ${YELLOW}⚠️  .mcp.json not found - copy from mcp/servers.json${NC}"
+fi
+
+echo ""
 echo -e "${BLUE}🚀 Next Steps:${NC}"
 echo -e "  1. Configure Claude Code to use these MCP servers"
 echo -e "  2. Start your database stack: ${YELLOW}docker-compose up -d${NC}"
-echo -e "  3. Test with: ${YELLOW}./bin/llm-cli.js --list-tools${NC}"
+echo -e "  3. ${YELLOW}⚠️  RESTART Claude Code${NC} after any .mcp.json changes"
+echo -e "  4. Test with: ${YELLOW}./bin/llm-cli.js --list-tools${NC}"
+echo ""
+echo -e "${YELLOW}📖 Documentation:${NC}"
+echo -e "  • Setup guide: ${YELLOW}docs/mcp-setup.md${NC}"
+echo -e "  • Troubleshooting: ${YELLOW}docs/neo4j-troubleshooting.md${NC}"

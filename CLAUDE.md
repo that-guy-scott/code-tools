@@ -176,7 +176,7 @@
 ## Essential MCP Servers
 
 **Core Servers:**
-- **neo4j-agent-memory** - AI agent memory and knowledge graph
+- **neo4j-agent-memory** - AI agent memory and knowledge graph ⚠️ **REQUIRES ENV VARS**
 - **jetbrains** - IntelliJ IDEA integration and file operations
 - **postgres** - Database operations with transaction support  
 - **docker-mcp** - Container management
@@ -187,6 +187,20 @@
 - **JetBrains**: Use project-relative paths, prefer `get_file_text_by_path`
 - **PostgreSQL**: Use transactions for write operations
 - **Query Limits**: Always use limit: 3-5, depth: 1 to prevent token overflow
+
+**CRITICAL: Neo4j Agent Memory Configuration**
+```json
+"neo4j-agent-memory": {
+  "command": "npx",
+  "args": ["@knowall-ai/mcp-neo4j-agent-memory"],
+  "env": {
+    "NEO4J_URI": "bolt://localhost:7687",
+    "NEO4J_USERNAME": "neo4j",
+    "NEO4J_PASSWORD": "dev_password_123"
+  }
+}
+```
+**⚠️ MUST restart Claude Code after any `.mcp.json` changes!**
 
 ## Project Guidelines
 

@@ -45,13 +45,15 @@ docker-compose up -d
 
 ## 🔌 MCP Servers
 
-- **neo4j-agent-memory** - AI agent memory and knowledge graph
+- **neo4j-agent-memory** - AI agent memory and knowledge graph ⚠️ *Requires env vars*
 - **postgres** - PostgreSQL database operations  
 - **qdrant** - Vector search and embeddings
 - **github** - Repository management
 - **puppeteer** - Browser automation
 - **docker-mcp** - Container management
 - **jetbrains** - IntelliJ IDEA integration
+
+> ⚠️ **Important:** The Neo4j agent memory server requires environment variables in `.mcp.json`, not CLI arguments. See [troubleshooting guide](docs/neo4j-troubleshooting.md) if experiencing connection issues.
 
 ## 📋 Requirements
 
