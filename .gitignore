@@ -1,33 +1,59 @@
-# Dependencies
-node_modules/
+# Claude Code MCP Ecosystem Setup Kit
+# Clean, minimal .gitignore for the setup kit
 
-# Environment variables
+# Environment files
 .env
+.env.local
+.env.development
+.env.production
 
-# IDE files
-.idea/
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# MCP-related files
-venv-mcp/
-.mcp-*.log
-mcp-test-*.js
-.mcp-backup/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+ENV/
+env/
+.venv
 
-# Database files (development)
-dev.db
+# MCP-specific
+mcp/venv/
+mcp/*.log
+*.log
+
+# Database data (should never be committed)
+data/
+database/
+*.db
 *.sqlite
 *.sqlite3
 
-# Neo4j database files
-data/neo4j/
-data/qdrant/
-data/postgres/
+# Docker volumes
+docker-compose.override.yml
 
-# Large binary files
-*.jar
-*.db
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Temporary files
 *.tmp
-*.log
-.DS_Store
+*.temp
+.tmp/
+.temp/

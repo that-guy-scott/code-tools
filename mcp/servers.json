@@ -1,0 +1,70 @@
+{
+  "mcpServers": {
+    "neo4j-agent-memory": {
+      "command": "npx",
+      "args": [
+        "@knowall-ai/mcp-neo4j-agent-memory",
+        "bolt://localhost:7687",
+        "neo4j",
+        "dev_password_123"
+      ]
+    },
+    "neo4j-server": {
+      "command": "npx",
+      "args": [
+        "@alanse/mcp-neo4j-server"
+      ],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "dev_password_123"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://dev_user:dev_password_123@localhost:5432/PROJECT_NAME_dev"
+      ]
+    },
+    "qdrant": {
+      "command": "python",
+      "args": [
+        "-m",
+        "mcp_server_qdrant"
+      ],
+      "env": {
+        "QDRANT_URL": "http://localhost:6333"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
+      }
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    },
+    "docker-mcp": {
+      "command": "npx",
+      "args": [
+        "mcp-server-docker"
+      ]
+    },
+    "jetbrains": {
+      "command": "npx",
+      "args": [
+        "@jetbrains/mcp-proxy",
+        "--port",
+        "63341"
+      ]
+    }
+  }
+}
