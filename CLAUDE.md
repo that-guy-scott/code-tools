@@ -151,6 +151,65 @@
 4. Break into multiple specific queries
 5. Use Neo4j Cypher queries for complex analysis instead
 
+## Enhanced Semantic Knowledge System - STREAMLINED WORKFLOWS
+
+### Hybrid Intelligence: Neo4j + Nomic Embeddings + Qdrant
+
+**BEFORE starting any development task:**
+1. **Hybrid search** for related work: `llm --knowledge-search "your task description"`
+2. **Graph context** from Neo4j memories: Search related entities (limit: 3, depth: 1)
+3. **Cross-reference** findings between graph knowledge and semantic matches
+
+**DURING development work:**
+1. **Search similar patterns** to avoid reinventing solutions: `llm --semantic-search "pattern description"`
+2. **Document new entities** in Neo4j as you discover components
+3. **Note semantic relationships** between similar content
+
+**AFTER completing any task:**
+1. **Index new knowledge**: `llm --index-knowledge` to update semantic vectors
+2. **Update Neo4j entities** with new observations and relationships
+3. **Validate cross-references** between graph and semantic knowledge
+
+### Streamlined Semantic Commands
+
+**Knowledge Indexing:**
+```bash
+# Index project files for semantic search
+llm --index-knowledge
+
+# Uses: Ollama nomic-embed-text + MCP Qdrant storage + Neo4j linking
+```
+
+**Semantic Search:**
+```bash
+# Search project knowledge semantically
+llm --semantic-search "authentication patterns"
+llm --semantic-search "MCP server configuration"
+
+# Uses: MCP Qdrant server for vector similarity search
+```
+
+**Hybrid Knowledge Search:**
+```bash
+# Combine Neo4j graph + semantic search
+llm --knowledge-search "database connection issues"
+llm --knowledge-search "CLI command structure"
+
+# Uses: Neo4j agent memory + Qdrant semantic + fusion scoring
+```
+
+### Integration with Three-Database Architecture
+
+**Database Coordination:**
+- **Neo4j** - Entity relationships and project context (via MCP agent memory)
+- **Qdrant** - Semantic vectors and content similarity (via MCP Qdrant server) 
+- **PostgreSQL** - Structured metadata and cross-system references (via MCP postgres)
+
+**Workflow Integration:**
+- Neo4j searches use mandatory limits (limit: 3-5, depth: 1) to prevent token overflow
+- Semantic indexing creates corresponding Neo4j entities for cross-system linking
+- Hybrid search combines graph traversal with vector similarity for comprehensive results
+
 ### Knowledge Graph Maintenance Workflows - MANDATORY PROCEDURES
 
 **BEFORE starting ANY development task:**

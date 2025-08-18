@@ -1,0 +1,24 @@
+{
+  "name": "code-tools",
+  "version": "1.0.0",
+  "description": "Claude Code MCP ecosystem with streamlined semantic knowledge",
+  "main": "bin/llm-cli.js",
+  "bin": {
+    "llm": "./bin/llm-cli.js"
+  },
+  "scripts": {
+    "start": "node bin/llm-cli.js"
+  },
+  "dependencies": {
+    "commander": "^11.1.0",
+    "chalk": "^4.1.2"
+  },
+  "keywords": [
+    "claude",
+    "mcp", 
+    "semantic",
+    "knowledge"
+  ],
+  "author": "Scott Angel",
+  "license": "MIT"
+}
