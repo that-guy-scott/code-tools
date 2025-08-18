@@ -27,37 +27,6 @@
         "postgresql://dev_user:dev_password_123@localhost:5432/code_tools_dev"
       ]
     },
-    "qdrant": {
-      "command": "python",
-      "args": [
-        "-m",
-        "mcp_server_qdrant"
-      ],
-      "env": {
-        "QDRANT_URL": "http://localhost:6333"
-      }
-    },
-    "github": {
-      "command": "npx",
-      "args": [
-        "@modelcontextprotocol/server-github"
-      ],
-      "env": {
-        "GITHUB_PERSONAL_ACCESS_TOKEN": ""
-      }
-    },
-    "puppeteer": {
-      "command": "npx",
-      "args": [
-        "@modelcontextprotocol/server-puppeteer"
-      ]
-    },
-    "docker-mcp": {
-      "command": "npx",
-      "args": [
-        "mcp-server-docker"
-      ]
-    },
     "jetbrains": {
       "command": "npx",
       "args": [
