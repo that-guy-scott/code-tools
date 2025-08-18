@@ -183,11 +183,13 @@ async function showMCPTools() {
   console.log('  • neo4j-agent-memory (Project knowledge graph)');
   console.log('  • neo4j-server (Graph operations)');
   console.log('  • postgres (Project database)');
-  console.log('  • redis (Project cache)');
   console.log('  • qdrant (Project vectors)');
+  console.log('  • context7 (Up-to-date code documentation)');
+  console.log('  • jetbrains (IntelliJ IDEA integration)');
   console.log('  • github (Repository operations)');
-  console.log('  • puppeteer (Browser automation)');
   console.log('  • docker-mcp (Container management)');
+  console.log('');
+  console.log(chalk.yellow('💡 Tip: Add "use context7" to prompts for current documentation'));
 }
 
 async function processPrompt(prompt, options) {

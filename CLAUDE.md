@@ -170,6 +170,20 @@
 2. **Update Neo4j entities** with new observations and relationships
 3. **Validate cross-references** between graph and semantic knowledge
 
+### Context7 Integration - Current Documentation
+
+**For up-to-date code examples and documentation:**
+- Add `use context7` to any coding prompts to get current, version-specific docs
+- Prevents outdated or hallucinated code examples
+- Works automatically with MCP infrastructure
+
+**Example prompts:**
+```
+"Create a Next.js 14 project with app router. use context7"
+"Show MongoDB aggregation pipeline best practices. use context7" 
+"Write TypeScript interface for REST API. use context7"
+```
+
 ### Streamlined Semantic Commands
 
 **Knowledge Indexing:**
@@ -238,6 +252,8 @@ llm --knowledge-search "CLI command structure"
 - **neo4j-agent-memory** - AI agent memory and knowledge graph ⚠️ **REQUIRES ENV VARS**
 - **jetbrains** - IntelliJ IDEA integration and file operations
 - **postgres** - Database operations with transaction support  
+- **qdrant** - Vector database for semantic search
+- **context7** - Up-to-date code documentation and examples
 - **docker-mcp** - Container management
 - **github** - Repository management
 
@@ -245,6 +261,8 @@ llm --knowledge-search "CLI command structure"
 - **Neo4j**: Always search before creating entities, use kebab-case naming
 - **JetBrains**: Use project-relative paths, prefer `get_file_text_by_path`
 - **PostgreSQL**: Use transactions for write operations
+- **Qdrant**: Use for semantic search and vector storage
+- **Context7**: Add "use context7" to prompts for up-to-date documentation
 - **Query Limits**: Always use limit: 3-5, depth: 1 to prevent token overflow
 
 **CRITICAL: Neo4j Agent Memory Configuration**
