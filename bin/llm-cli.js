@@ -846,12 +846,98 @@ async function storeInQdrant(points) {
   }
 }
 
+async function createProjectEntity(projectName) {
+  try {
+    console.log(chalk.gray(`  Creating/finding project entity: ${projectName}...`));
+    
+    // First search for existing project entity
+    const searchResult = await mcpManager.callTool(
+      'neo4j-agent-memory',
+      'search_memories',
+      {
+        query: projectName,
+        label: 'project',
+        limit: 1,
+        depth: 1
+      }
+    );
+    
+    if (searchResult && searchResult.content && searchResult.content[0]) {
+      const searchData = JSON.parse(searchResult.content[0].text);
+      if (searchData.length > 0) {
+        const existingProject = searchData[0];
+        if (existingProject.memory && existingProject.memory.name === projectName) {
+          console.log(chalk.gray(`  ✓ Found existing project entity: ${existingProject.memory._id}`));
+          return existingProject.memory._id;
+        }
+      }
+    }
+    
+    // Create new project entity
+    const projectData = {
+      name: projectName,
+      type: 'indexed_project',
+      indexed_at: new Date().toISOString(),
+      vector_collection: COLLECTION_NAME,
+      status: 'active',
+      location: PROJECT_ROOT
+    };
+    
+    const createResult = await mcpManager.callTool(
+      'neo4j-agent-memory',
+      'create_memory',
+      {
+        label: 'project',
+        properties: projectData
+      }
+    );
+    
+    if (createResult && createResult.content && createResult.content[0]) {
+      const memory = JSON.parse(createResult.content[0].text);
+      const projectId = memory.memory._id;
+      
+      console.log(chalk.gray(`  ✓ Created project entity: ${projectId}`));
+      
+      // Link CLI tool to this project with INDEXES relationship
+      await mcpManager.callTool(
+        'neo4j-agent-memory',
+        'create_connection',
+        {
+          fromMemoryId: 10, // llm-cli application entity
+          toMemoryId: projectId,
+          type: 'INDEXES',
+          properties: {
+            indexed_at: new Date().toISOString(),
+            tool_version: '2.0.0-local'
+          }
+        }
+      );
+      
+      console.log(chalk.gray(`  ✓ Project linked to CLI with INDEXES relationship`));
+      
+      return projectId;
+    }
+    
+    throw new Error('Failed to create project entity');
+    
+  } catch (error) {
+    console.error(chalk.red(`Failed to create project entity: ${error.message}`));
+    return null;
+  }
+}
+
 async function createDocumentEntity(filePath, contentLength, vectorData) {
   try {
     const relativePath = path.relative(PROJECT_ROOT, filePath);
     const fileName = path.basename(filePath);
     const fileExt = path.extname(filePath);
     const stats = fs.statSync(filePath);
+    
+    // Get or create project entity first
+    const projectId = await createProjectEntity(PROJECT_NAME);
+    if (!projectId) {
+      throw new Error('Failed to create/find project entity');
+    }
     
     // Create document entity in Neo4j with REAL MCP calls
     const documentData = {
@@ -891,12 +977,12 @@ async function createDocumentEntity(filePath, contentLength, vectorData) {
         
         console.log(chalk.gray(`  ✓ Neo4j entity created: ${documentId}`));
         
-        // Link document to project
+        // Link document to PROJECT (not main CLI tool)
         await mcpManager.callTool(
           'neo4j-agent-memory',
           'create_connection',
           {
-            fromMemoryId: 0, // project entity
+            fromMemoryId: projectId, // Link to project entity instead of main CLI
             toMemoryId: documentId,
             type: 'CONTAINS',
             properties: {
