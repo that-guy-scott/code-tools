@@ -16,6 +16,11 @@ import { fileURLToPath } from 'url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
+// AST parsing imports
+import * as acorn from 'acorn';
+import { parse as babelParse } from '@babel/parser';
+import babelTraverse from '@babel/traverse';
+
 dotenv.config();
 
 const program = new Command();
@@ -515,9 +520,10 @@ async function indexProjectKnowledge() {
     let indexed = 0;
     let failed = 0;
     
-    for (const filePath of filesToIndex) {
+    for (const fileInfo of filesToIndex) {
+      const { path: filePath, type: fileType } = fileInfo;
       try {
-        console.log(chalk.cyan(`🔄 Indexing: ${filePath}`));
+        console.log(chalk.cyan(`🔄 Indexing (${fileType}): ${filePath}`));
         
         // Check if file is already indexed
         const alreadyIndexed = await checkIfFileIndexed(filePath);
@@ -533,11 +539,16 @@ async function indexProjectKnowledge() {
           continue;
         }
         
-        // Use MCP Qdrant to add document with Ollama embeddings
-        const vectorData = await indexFileWithMCP(filePath, content);
+        // Use MCP Qdrant to add document with intelligent chunking
+        const vectorData = await indexFileWithMCP(filePath, content, fileType);
         
-        // Create Neo4j entity for the document with vector metadata
+        // Create Neo4j entity for the document with vector metadata and code structure
         const neo4jResult = await createDocumentEntity(filePath, content.length, vectorData);
+        
+        // Create rich code structure entities if available
+        if (vectorData.codeStructure && neo4jResult && neo4jResult.documentId) {
+          await createCodeStructureEntities(neo4jResult.documentId, vectorData.codeStructure);
+        }
         
         // Store metadata in PostgreSQL with cross-references
         if (sessionId && neo4jResult && neo4jResult.success) {
@@ -684,12 +695,53 @@ async function discoverIndexableFiles() {
     }
   }
   
+  function detectFileType(filePath) {
+    const ext = path.extname(filePath).toLowerCase();
+    const fileName = path.basename(filePath).toLowerCase();
+    
+    // Code files
+    if (['.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.cpp', '.c', '.h', '.cs', '.php', '.rb', '.go', '.rs', '.swift', '.kt'].includes(ext)) {
+      return 'code';
+    }
+    
+    // Markup/Documentation
+    if (['.md', '.mdx', '.rst', '.txt', '.adoc', '.org'].includes(ext) || fileName === 'readme') {
+      return 'markup';
+    }
+    
+    // Data files
+    if (['.json', '.yaml', '.yml', '.xml', '.csv', '.tsv', '.toml', '.ini', '.conf'].includes(ext)) {
+      return 'data';
+    }
+    
+    // Config files
+    if (['.env', '.config', '.cfg', '.properties'].includes(ext) || fileName.includes('config') || fileName.startsWith('.')) {
+      return 'config';
+    }
+    
+    // Scripts
+    if (['.sh', '.bash', '.zsh', '.ps1', '.bat', '.cmd'].includes(ext)) {
+      return 'script';
+    }
+    
+    // Web files
+    if (['.html', '.htm', '.css', '.scss', '.sass', '.less'].includes(ext)) {
+      return 'web';
+    }
+    
+    // Default to text for unknown extensions
+    return 'text';
+  }
+
   function shouldIndex(filePath) {
     const relativePath = path.relative(PROJECT_ROOT, filePath);
     const fileName = path.basename(filePath);
     
     // Skip binary files
     if (isBinaryFile(filePath)) return false;
+    
+    // Detect file type for metadata
+    const fileType = detectFileType(filePath);
     
     // Check against .gitignore patterns
     if (gitignorePatterns.length > 0) {
@@ -736,7 +788,8 @@ async function discoverIndexableFiles() {
           scanDirectory(fullPath, files);
         }
       } else if (entry.isFile() && shouldIndex(fullPath)) {
-        files.push(fullPath);
+        const fileType = detectFileType(fullPath);
+        files.push({ path: fullPath, type: fileType });
       }
     }
     
@@ -746,13 +799,23 @@ async function discoverIndexableFiles() {
   return scanDirectory(PROJECT_ROOT);
 }
 
-async function indexFileWithMCP(filePath, content) {
+async function indexFileWithMCP(filePath, content, fileType) {
   const fileName = path.basename(filePath);
   const relativePath = path.relative(PROJECT_ROOT, filePath);
   
-  // Chunk the content
-  const chunks = chunkText(content, 2000, 200);
-  console.log(chalk.gray(`  Processing ${chunks.length} chunks for ${fileName}...`));
+  // Use intelligent chunking based on file type
+  console.log(chalk.gray(`  Analyzing ${fileName} for semantic boundaries...`));
+  const chunks = await intelligentChunk(content, fileType, filePath);
+  console.log(chalk.gray(`  Created ${chunks.length} semantic chunks for ${fileName}`));
+  
+  // Extract code structure if it's a supported programming language
+  let codeStructure = null;
+  if (fileType === 'code') {
+    codeStructure = await extractCodeStructure(filePath, content, fileType);
+    if (codeStructure) {
+      console.log(chalk.gray(`    📊 Found: ${codeStructure.classes.length} classes, ${codeStructure.functions.length} functions, ${codeStructure.imports.length} imports`));
+    }
+  }
   
   const points = [];
   
@@ -784,9 +847,14 @@ async function indexFileWithMCP(filePath, content) {
   console.log(chalk.gray(`  Storing ${points.length} vectors in Qdrant...`));
   await storeInQdrant(points);
   
-  return { chunks: chunks.length, vectors_stored: points.length };
+  return { 
+    chunks: chunks.length, 
+    vectors_stored: points.length,
+    codeStructure: codeStructure
+  };
 }
 
+// Legacy basic chunking (fallback)
 function chunkText(text, chunkSize, overlap) {
   const chunks = [];
   let start = 0;
@@ -800,6 +868,202 @@ function chunkText(text, chunkSize, overlap) {
   }
   
   return chunks;
+}
+
+// Intelligent semantic chunking with LLM assistance
+async function intelligentChunk(text, fileType, filePath) {
+  try {
+    // For very small files, don't chunk
+    if (text.length <= 1000) {
+      return [text];
+    }
+    
+    // Get chunking strategy from Ollama
+    const strategy = await getChunkingStrategy(text, fileType, filePath);
+    
+    if (strategy && strategy.boundaries && strategy.boundaries.length > 0) {
+      return createSemanticChunks(text, strategy.boundaries);
+    } else {
+      // Fallback to basic chunking if LLM analysis fails
+      return chunkText(text, 2000, 200);
+    }
+    
+  } catch (error) {
+    console.error(chalk.yellow(`  Intelligent chunking failed, using basic chunking: ${error.message}`));
+    return chunkText(text, 2000, 200);
+  }
+}
+
+// Get chunking strategy from Ollama
+async function getChunkingStrategy(text, fileType, filePath) {
+  const fileName = path.basename(filePath);
+  
+  // Create file-type specific prompt
+  const prompt = createChunkingPrompt(text, fileType, fileName);
+  
+  try {
+    const response = await axios.post(`${DEFAULT_CONFIG.ollama.host}/api/generate`, {
+      model: DEFAULT_CONFIG.ollama.defaultModel,
+      prompt: prompt,
+      stream: false,
+      options: {
+        temperature: 0.1,  // Low temperature for consistent analysis
+        num_predict: 500   // Limit response length
+      }
+    });
+    
+    if (response.data && response.data.response) {
+      return parseChunkingResponse(response.data.response, text);
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(chalk.yellow(`  Ollama chunking analysis failed: ${error.message}`));
+    return null;
+  }
+}
+
+// Create file-type specific chunking prompts
+function createChunkingPrompt(text, fileType, fileName) {
+  const textPreview = text.length > 3000 ? text.substring(0, 3000) + "..." : text;
+  
+  const basePrompt = `Analyze this ${fileType} file and identify optimal chunk boundaries for semantic search.
+File: ${fileName}
+Content preview:
+${textPreview}
+
+`;
+
+  switch (fileType) {
+    case 'code':
+      return basePrompt + `For code files, identify boundaries at:
+- Function/method definitions
+- Class definitions  
+- Import/export sections
+- Major code blocks
+- Comment blocks
+
+Respond with line numbers where chunks should split (0-indexed). Format: BOUNDARIES: 0,15,45,78`;
+
+    case 'markup':
+      return basePrompt + `For markup/documentation, identify boundaries at:
+- Heading sections (##, ###)
+- Paragraph breaks
+- Code block boundaries
+- List sections
+- Topic changes
+
+Respond with character positions where chunks should split. Format: BOUNDARIES: 0,250,680,1200`;
+
+    case 'data':
+      return basePrompt + `For data files, identify boundaries at:
+- Record groups
+- Section headers
+- Logical data divisions
+- Schema changes
+
+Respond with character positions where chunks should split. Format: BOUNDARIES: 0,300,750,1100`;
+
+    default:
+      return basePrompt + `Identify natural boundaries at:
+- Paragraph breaks
+- Section changes
+- Topic shifts
+- Logical divisions
+
+Respond with character positions where chunks should split. Format: BOUNDARIES: 0,400,850,1300`;
+  }
+}
+
+// Parse Ollama response for chunk boundaries
+function parseChunkingResponse(response, text) {
+  try {
+    // Look for BOUNDARIES: pattern
+    const boundaryMatch = response.match(/BOUNDARIES:\s*([0-9,\s]+)/i);
+    
+    if (boundaryMatch) {
+      const boundaries = boundaryMatch[1]
+        .split(',')
+        .map(b => parseInt(b.trim()))
+        .filter(b => !isNaN(b) && b >= 0 && b < text.length)
+        .sort((a, b) => a - b);
+      
+      // Ensure we start at 0 and end at text length
+      if (boundaries[0] !== 0) boundaries.unshift(0);
+      if (boundaries[boundaries.length - 1] !== text.length) boundaries.push(text.length);
+      
+      return { boundaries };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error(chalk.yellow(`  Failed to parse chunking response: ${error.message}`));
+    return null;
+  }
+}
+
+// Create semantic chunks from boundaries
+function createSemanticChunks(text, boundaries) {
+  const chunks = [];
+  
+  for (let i = 0; i < boundaries.length - 1; i++) {
+    const start = boundaries[i];
+    const end = boundaries[i + 1];
+    const chunk = text.slice(start, end).trim();
+    
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+  }
+  
+  // Validate chunk quality
+  const validatedChunks = validateChunkQuality(chunks, text);
+  
+  return validatedChunks.length > 0 ? validatedChunks : [text]; // Fallback to full text if no valid chunks
+}
+
+// Validate chunk quality and merge if necessary
+function validateChunkQuality(chunks, originalText) {
+  const validatedChunks = [];
+  const MIN_CHUNK_SIZE = 100;  // Minimum meaningful chunk size
+  const MAX_CHUNK_SIZE = 4000; // Maximum reasonable chunk size
+  
+  for (let i = 0; i < chunks.length; i++) {
+    let chunk = chunks[i];
+    
+    // Skip empty or whitespace-only chunks
+    if (chunk.trim().length === 0) continue;
+    
+    // If chunk is too small, try to merge with next chunk
+    if (chunk.length < MIN_CHUNK_SIZE && i < chunks.length - 1) {
+      const nextChunk = chunks[i + 1];
+      if (nextChunk && (chunk.length + nextChunk.length) <= MAX_CHUNK_SIZE) {
+        chunk = chunk + '\n\n' + nextChunk;
+        i++; // Skip the next chunk since we merged it
+      }
+    }
+    
+    // If chunk is too large, split it using basic chunking
+    if (chunk.length > MAX_CHUNK_SIZE) {
+      const subChunks = chunkText(chunk, 2000, 200);
+      validatedChunks.push(...subChunks);
+    } else if (chunk.trim().length >= MIN_CHUNK_SIZE) {
+      validatedChunks.push(chunk);
+    }
+  }
+  
+  // Quality check: ensure we haven't lost significant content
+  const totalOriginalLength = originalText.length;
+  const totalChunkLength = validatedChunks.join('').length;
+  const retentionRatio = totalChunkLength / totalOriginalLength;
+  
+  // If we lost more than 20% of content, fall back to basic chunking
+  if (retentionRatio < 0.8) {
+    console.log(chalk.yellow(`  Content retention too low (${(retentionRatio * 100).toFixed(1)}%), using basic chunking`));
+    return chunkText(originalText, 2000, 200);
+  }
+  
+  return validatedChunks;
 }
 
 async function generateOllamaEmbedding(text) {
@@ -818,6 +1082,795 @@ async function generateOllamaEmbedding(text) {
     console.error(chalk.red(`Ollama embedding error:`), error.message);
     throw error;
   }
+}
+
+// ===== AST PARSING AND CODE ANALYSIS =====
+
+// Detect programming language from file extension and content
+function detectProgrammingLanguage(filePath, content) {
+  const ext = path.extname(filePath).toLowerCase();
+  const firstLine = content.split('\n')[0].toLowerCase();
+  
+  // JavaScript/TypeScript detection
+  if (['.js', '.jsx', '.mjs', '.cjs'].includes(ext)) {
+    return 'javascript';
+  }
+  if (['.ts', '.tsx'].includes(ext)) {
+    return 'typescript';
+  }
+  
+  // Python detection
+  if (['.py', '.pyw', '.pyc', '.pyo', '.pyd', '.pyz'].includes(ext)) {
+    return 'python';
+  }
+  
+  // Shebang detection
+  if (firstLine.includes('#!/usr/bin/env node') || firstLine.includes('#!/usr/bin/node')) {
+    return 'javascript';
+  }
+  if (firstLine.includes('#!/usr/bin/env python') || firstLine.includes('#!/usr/bin/python')) {
+    return 'python';
+  }
+  
+  return null; // Not a supported language for AST parsing
+}
+
+// Extract code structure using AST parsing
+async function extractCodeStructure(filePath, content, fileType) {
+  try {
+    const language = detectProgrammingLanguage(filePath, content);
+    
+    if (!language) {
+      return null; // Not a supported language
+    }
+    
+    console.log(chalk.gray(`    🔍 Analyzing ${language} code structure...`));
+    
+    switch (language) {
+      case 'javascript':
+        return await extractJavaScriptStructure(filePath, content);
+      case 'typescript':
+        return await extractTypeScriptStructure(filePath, content);
+      case 'python':
+        return await extractPythonStructure(filePath, content);
+      default:
+        return null;
+    }
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  AST parsing failed for ${path.basename(filePath)}: ${error.message}`));
+    return null;
+  }
+}
+
+// Extract JavaScript structure using Acorn
+async function extractJavaScriptStructure(filePath, content) {
+  try {
+    const ast = acorn.parse(content, {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      allowImportExportEverywhere: true,
+      allowAwaitOutsideFunction: true,
+      allowReturnOutsideFunction: true
+    });
+    
+    const structure = {
+      language: 'javascript',
+      file: filePath,
+      imports: [],
+      exports: [],
+      classes: [],
+      functions: [],
+      variables: [],
+      calls: []
+    };
+    
+    // Walk the AST to extract structure
+    walkAST(ast, structure);
+    
+    return structure;
+  } catch (error) {
+    // Fallback: try as script instead of module
+    try {
+      const ast = acorn.parse(content, {
+        ecmaVersion: 'latest',
+        sourceType: 'script'
+      });
+      
+      const structure = {
+        language: 'javascript',
+        file: filePath,
+        imports: [],
+        exports: [],
+        classes: [],
+        functions: [],
+        variables: [],
+        calls: []
+      };
+      
+      walkAST(ast, structure);
+      return structure;
+    } catch (fallbackError) {
+      throw new Error(`JavaScript parsing failed: ${error.message}`);
+    }
+  }
+}
+
+// Extract TypeScript structure using Babel
+async function extractTypeScriptStructure(filePath, content) {
+  try {
+    const ast = babelParse(content, {
+      sourceType: 'module',
+      allowImportExportEverywhere: true,
+      allowAwaitOutsideFunction: true,
+      allowReturnOutsideFunction: true,
+      plugins: [
+        'typescript',
+        'jsx',
+        'decorators-legacy',
+        'classProperties',
+        'asyncGenerators',
+        'functionBind',
+        'exportDefaultFrom',
+        'exportNamespaceFrom',
+        'dynamicImport',
+        'nullishCoalescingOperator',
+        'optionalChaining'
+      ]
+    });
+    
+    const structure = {
+      language: 'typescript',
+      file: filePath,
+      imports: [],
+      exports: [],
+      classes: [],
+      functions: [],
+      variables: [],
+      calls: [],
+      interfaces: [],
+      types: []
+    };
+    
+    // Use Babel traverse to walk the AST
+    const traverse = babelTraverse.default || babelTraverse;
+    traverse(ast, {
+      ImportDeclaration(path) {
+        structure.imports.push({
+          source: path.node.source.value,
+          specifiers: path.node.specifiers.map(spec => ({
+            type: spec.type,
+            local: spec.local?.name,
+            imported: spec.imported?.name || spec.local?.name
+          })),
+          line: path.node.loc?.start.line
+        });
+      },
+      
+      ExportDeclaration(path) {
+        if (path.isExportNamedDeclaration() || path.isExportDefaultDeclaration()) {
+          structure.exports.push({
+            type: path.node.type,
+            declaration: path.node.declaration?.type,
+            source: path.node.source?.value,
+            line: path.node.loc?.start.line
+          });
+        }
+      },
+      
+      ClassDeclaration(path) {
+        const methods = [];
+        path.traverse({
+          ClassMethod(methodPath) {
+            methods.push({
+              name: methodPath.node.key.name,
+              kind: methodPath.node.kind, // constructor, method, get, set
+              static: methodPath.node.static,
+              async: methodPath.node.async,
+              line: methodPath.node.loc?.start.line,
+              parameters: methodPath.node.params.map(param => ({
+                name: param.name,
+                type: param.typeAnnotation?.typeAnnotation?.type
+              }))
+            });
+          }
+        });
+        
+        structure.classes.push({
+          name: path.node.id?.name,
+          superClass: path.node.superClass?.name,
+          line: path.node.loc?.start.line,
+          methods: methods
+        });
+      },
+      
+      FunctionDeclaration(path) {
+        structure.functions.push({
+          name: path.node.id?.name,
+          async: path.node.async,
+          generator: path.node.generator,
+          line: path.node.loc?.start.line,
+          parameters: path.node.params.map(param => ({
+            name: param.name,
+            type: param.typeAnnotation?.typeAnnotation?.type
+          }))
+        });
+      },
+      
+      CallExpression(path) {
+        let callee = '';
+        if (path.node.callee.type === 'Identifier') {
+          callee = path.node.callee.name;
+        } else if (path.node.callee.type === 'MemberExpression') {
+          callee = `${path.node.callee.object.name}.${path.node.callee.property.name}`;
+        }
+        
+        structure.calls.push({
+          function: callee,
+          line: path.node.loc?.start.line,
+          arguments: path.node.arguments.length
+        });
+      },
+      
+      TSInterfaceDeclaration(path) {
+        structure.interfaces.push({
+          name: path.node.id.name,
+          line: path.node.loc?.start.line,
+          extends: path.node.extends?.map(ext => ext.expression?.name)
+        });
+      },
+      
+      TSTypeAliasDeclaration(path) {
+        structure.types.push({
+          name: path.node.id.name,
+          line: path.node.loc?.start.line
+        });
+      }
+    });
+    
+    return structure;
+  } catch (error) {
+    throw new Error(`TypeScript parsing failed: ${error.message}`);
+  }
+}
+
+// Simple Python structure extraction (basic patterns)
+async function extractPythonStructure(filePath, content) {
+  // For Python, we'll use regex patterns since we don't have a full Python AST parser
+  // This is a simplified version - in production, you'd use a proper Python AST parser
+  
+  const structure = {
+    language: 'python',
+    file: filePath,
+    imports: [],
+    classes: [],
+    functions: [],
+    calls: []
+  };
+  
+  const lines = content.split('\n');
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const lineNumber = i + 1;
+    
+    // Import statements
+    const importMatch = line.match(/^(import|from)\s+([^\s]+)/);
+    if (importMatch) {
+      structure.imports.push({
+        type: importMatch[1],
+        module: importMatch[2],
+        line: lineNumber
+      });
+    }
+    
+    // Class definitions
+    const classMatch = line.match(/^class\s+(\w+)(\([^)]*\))?:/);
+    if (classMatch) {
+      structure.classes.push({
+        name: classMatch[1],
+        superClass: classMatch[2]?.replace(/[()]/g, '').trim() || null,
+        line: lineNumber,
+        methods: []
+      });
+    }
+    
+    // Function definitions
+    const funcMatch = line.match(/^(async\s+)?def\s+(\w+)\s*\(/);
+    if (funcMatch) {
+      structure.functions.push({
+        name: funcMatch[2],
+        async: !!funcMatch[1],
+        line: lineNumber
+      });
+    }
+    
+    // Method definitions (indented functions)
+    const methodMatch = line.match(/^\s+(async\s+)?def\s+(\w+)\s*\(/);
+    if (methodMatch && structure.classes.length > 0) {
+      const currentClass = structure.classes[structure.classes.length - 1];
+      currentClass.methods.push({
+        name: methodMatch[2],
+        async: !!methodMatch[1],
+        line: lineNumber
+      });
+    }
+    
+    // Function calls (basic pattern)
+    const callMatch = line.match(/(\w+)\s*\(/);
+    if (callMatch && !line.includes('def ') && !line.includes('class ')) {
+      structure.calls.push({
+        function: callMatch[1],
+        line: lineNumber
+      });
+    }
+  }
+  
+  return structure;
+}
+
+// Walk AST for JavaScript (Acorn)
+function walkAST(node, structure) {
+  if (!node || typeof node !== 'object') return;
+  
+  switch (node.type) {
+    case 'ImportDeclaration':
+      structure.imports.push({
+        source: node.source.value,
+        specifiers: node.specifiers.map(spec => ({
+          type: spec.type,
+          local: spec.local?.name,
+          imported: spec.imported?.name || spec.local?.name
+        })),
+        line: node.loc?.start.line
+      });
+      break;
+      
+    case 'ExportDefaultDeclaration':
+    case 'ExportNamedDeclaration':
+      structure.exports.push({
+        type: node.type,
+        declaration: node.declaration?.type,
+        line: node.loc?.start.line
+      });
+      break;
+      
+    case 'ClassDeclaration':
+      const methods = [];
+      if (node.body && node.body.body) {
+        node.body.body.forEach(method => {
+          if (method.type === 'MethodDefinition') {
+            methods.push({
+              name: method.key.name,
+              kind: method.kind,
+              static: method.static,
+              line: method.loc?.start.line
+            });
+          }
+        });
+      }
+      
+      structure.classes.push({
+        name: node.id?.name,
+        superClass: node.superClass?.name,
+        line: node.loc?.start.line,
+        methods: methods
+      });
+      break;
+      
+    case 'FunctionDeclaration':
+      structure.functions.push({
+        name: node.id?.name,
+        async: node.async,
+        generator: node.generator,
+        line: node.loc?.start.line,
+        parameters: node.params.map(param => ({ name: param.name }))
+      });
+      break;
+      
+    case 'CallExpression':
+      let callee = '';
+      if (node.callee.type === 'Identifier') {
+        callee = node.callee.name;
+      } else if (node.callee.type === 'MemberExpression') {
+        callee = `${node.callee.object.name}.${node.callee.property.name}`;
+      }
+      
+      structure.calls.push({
+        function: callee,
+        line: node.loc?.start.line,
+        arguments: node.arguments.length
+      });
+      break;
+  }
+  
+  // Recursively walk child nodes
+  for (const key in node) {
+    if (key !== 'parent' && key !== 'loc' && key !== 'range') {
+      const child = node[key];
+      if (Array.isArray(child)) {
+        child.forEach(item => walkAST(item, structure));
+      } else if (child && typeof child === 'object') {
+        walkAST(child, structure);
+      }
+    }
+  }
+}
+
+// ===== RICH CODE STRUCTURE ENTITY CREATION =====
+
+async function createCodeStructureEntities(documentId, codeStructure) {
+  try {
+    console.log(chalk.gray(`    🏗️  Creating code structure entities for ${codeStructure.language}...`));
+    
+    // Create entities for imports
+    for (const importInfo of codeStructure.imports) {
+      await createImportEntity(documentId, importInfo, codeStructure);
+    }
+    
+    // Create entities for classes and their methods
+    for (const classInfo of codeStructure.classes) {
+      const classId = await createClassEntity(documentId, classInfo, codeStructure);
+      
+      // Create method entities for this class
+      for (const method of classInfo.methods) {
+        await createMethodEntity(classId, method, codeStructure);
+      }
+    }
+    
+    // Create entities for standalone functions
+    for (const funcInfo of codeStructure.functions) {
+      await createFunctionEntity(documentId, funcInfo, codeStructure);
+    }
+    
+    // Create entities for function calls (for dependency analysis)
+    const callCounts = {};
+    for (const call of codeStructure.calls) {
+      callCounts[call.function] = (callCounts[call.function] || 0) + 1;
+    }
+    
+    for (const [functionName, count] of Object.entries(callCounts)) {
+      await createFunctionCallEntity(documentId, functionName, count, codeStructure);
+    }
+    
+    console.log(chalk.gray(`    ✅ Created code structure: ${codeStructure.classes.length} classes, ${codeStructure.functions.length} functions, ${Object.keys(callCounts).length} call patterns`));
+    
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  Code structure creation failed: ${error.message}`));
+  }
+}
+
+async function createImportEntity(documentId, importInfo, codeStructure) {
+  try {
+    const mcpManager = global.mcpManager;
+    if (!mcpManager || !mcpManager.clients.has('neo4j-agent-memory')) {
+      return null;
+    }
+    
+    const client = mcpManager.clients.get('neo4j-agent-memory');
+    
+    const importData = {
+      name: `import-${importInfo.source}`,
+      source_module: importInfo.source,
+      import_type: importInfo.type || 'unknown',
+      line_number: importInfo.line,
+      specifiers: JSON.stringify(importInfo.specifiers),
+      language: codeStructure.language
+    };
+    
+    const result = await client.request({
+      method: 'tools/call',
+      params: {
+        name: 'create_memory',
+        arguments: {
+          label: 'import',
+          properties: importData
+        }
+      }
+    });
+    
+    if (result.content && result.content[0]?.text) {
+      const response = JSON.parse(result.content[0].text);
+      const importId = response.id;
+      
+      // Create relationship from document to import
+      await client.request({
+        method: 'tools/call',
+        params: {
+          name: 'create_connection',
+          arguments: {
+            fromMemoryId: documentId,
+            toMemoryId: importId,
+            type: 'IMPORTS',
+            properties: {
+              line: importInfo.line,
+              import_type: importInfo.type
+            }
+          }
+        }
+      });
+      
+      return importId;
+    }
+    
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  Import entity creation failed: ${error.message}`));
+  }
+  return null;
+}
+
+async function createClassEntity(documentId, classInfo, codeStructure) {
+  try {
+    const mcpManager = global.mcpManager;
+    if (!mcpManager || !mcpManager.clients.has('neo4j-agent-memory')) {
+      return null;
+    }
+    
+    const client = mcpManager.clients.get('neo4j-agent-memory');
+    
+    const classData = {
+      name: classInfo.name,
+      line_number: classInfo.line,
+      super_class: classInfo.superClass,
+      method_count: classInfo.methods ? classInfo.methods.length : 0,
+      language: codeStructure.language,
+      file_path: codeStructure.file
+    };
+    
+    const result = await client.request({
+      method: 'tools/call',
+      params: {
+        name: 'create_memory',
+        arguments: {
+          label: 'class',
+          properties: classData
+        }
+      }
+    });
+    
+    if (result.content && result.content[0]?.text) {
+      const response = JSON.parse(result.content[0].text);
+      const classId = response.id;
+      
+      // Create relationship from document to class
+      await client.request({
+        method: 'tools/call',
+        params: {
+          name: 'create_connection',
+          arguments: {
+            fromMemoryId: documentId,
+            toMemoryId: classId,
+            type: 'DEFINES',
+            properties: {
+              line: classInfo.line,
+              entity_type: 'class'
+            }
+          }
+        }
+      });
+      
+      // Create inheritance relationship if applicable
+      if (classInfo.superClass) {
+        // Note: This creates a placeholder - in a full implementation, you'd resolve this to actual class IDs
+        const inheritanceData = {
+          child_class: classInfo.name,
+          parent_class: classInfo.superClass,
+          language: codeStructure.language
+        };
+        
+        const inheritResult = await client.request({
+          method: 'tools/call',
+          params: {
+            name: 'create_memory',
+            arguments: {
+              label: 'inheritance',
+              properties: inheritanceData
+            }
+          }
+        });
+        
+        if (inheritResult.content && inheritResult.content[0]?.text) {
+          const inheritResponse = JSON.parse(inheritResult.content[0].text);
+          await client.request({
+            method: 'tools/call',
+            params: {
+              name: 'create_connection',
+              arguments: {
+                fromMemoryId: classId,
+                toMemoryId: inheritResponse.id,
+                type: 'EXTENDS',
+                properties: {}
+              }
+            }
+          });
+        }
+      }
+      
+      return classId;
+    }
+    
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  Class entity creation failed: ${error.message}`));
+  }
+  return null;
+}
+
+async function createMethodEntity(classId, methodInfo, codeStructure) {
+  try {
+    const mcpManager = global.mcpManager;
+    if (!mcpManager || !mcpManager.clients.has('neo4j-agent-memory')) {
+      return null;
+    }
+    
+    const client = mcpManager.clients.get('neo4j-agent-memory');
+    
+    const methodData = {
+      name: methodInfo.name,
+      line_number: methodInfo.line,
+      kind: methodInfo.kind || 'method',
+      is_static: methodInfo.static || false,
+      is_async: methodInfo.async || false,
+      parameter_count: methodInfo.parameters ? methodInfo.parameters.length : 0,
+      parameters: JSON.stringify(methodInfo.parameters || []),
+      language: codeStructure.language
+    };
+    
+    const result = await client.request({
+      method: 'tools/call',
+      params: {
+        name: 'create_memory',
+        arguments: {
+          label: 'method',
+          properties: methodData
+        }
+      }
+    });
+    
+    if (result.content && result.content[0]?.text) {
+      const response = JSON.parse(result.content[0].text);
+      const methodId = response.id;
+      
+      // Create relationship from class to method
+      await client.request({
+        method: 'tools/call',
+        params: {
+          name: 'create_connection',
+          arguments: {
+            fromMemoryId: classId,
+            toMemoryId: methodId,
+            type: 'HAS_METHOD',
+            properties: {
+              line: methodInfo.line,
+              kind: methodInfo.kind
+            }
+          }
+        }
+      });
+      
+      return methodId;
+    }
+    
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  Method entity creation failed: ${error.message}`));
+  }
+  return null;
+}
+
+async function createFunctionEntity(documentId, funcInfo, codeStructure) {
+  try {
+    const mcpManager = global.mcpManager;
+    if (!mcpManager || !mcpManager.clients.has('neo4j-agent-memory')) {
+      return null;
+    }
+    
+    const client = mcpManager.clients.get('neo4j-agent-memory');
+    
+    const functionData = {
+      name: funcInfo.name,
+      line_number: funcInfo.line,
+      is_async: funcInfo.async || false,
+      is_generator: funcInfo.generator || false,
+      parameter_count: funcInfo.parameters ? funcInfo.parameters.length : 0,
+      parameters: JSON.stringify(funcInfo.parameters || []),
+      language: codeStructure.language,
+      file_path: codeStructure.file
+    };
+    
+    const result = await client.request({
+      method: 'tools/call',
+      params: {
+        name: 'create_memory',
+        arguments: {
+          label: 'function',
+          properties: functionData
+        }
+      }
+    });
+    
+    if (result.content && result.content[0]?.text) {
+      const response = JSON.parse(result.content[0].text);
+      const functionId = response.id;
+      
+      // Create relationship from document to function
+      await client.request({
+        method: 'tools/call',
+        params: {
+          name: 'create_connection',
+          arguments: {
+            fromMemoryId: documentId,
+            toMemoryId: functionId,
+            type: 'DEFINES',
+            properties: {
+              line: funcInfo.line,
+              entity_type: 'function'
+            }
+          }
+        }
+      });
+      
+      return functionId;
+    }
+    
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  Function entity creation failed: ${error.message}`));
+  }
+  return null;
+}
+
+async function createFunctionCallEntity(documentId, functionName, callCount, codeStructure) {
+  try {
+    const mcpManager = global.mcpManager;
+    if (!mcpManager || !mcpManager.clients.has('neo4j-agent-memory')) {
+      return null;
+    }
+    
+    const client = mcpManager.clients.get('neo4j-agent-memory');
+    
+    const callData = {
+      name: `call-${functionName}`,
+      function_name: functionName,
+      call_count: callCount,
+      language: codeStructure.language,
+      file_path: codeStructure.file
+    };
+    
+    const result = await client.request({
+      method: 'tools/call',
+      params: {
+        name: 'create_memory',
+        arguments: {
+          label: 'function_call',
+          properties: callData
+        }
+      }
+    });
+    
+    if (result.content && result.content[0]?.text) {
+      const response = JSON.parse(result.content[0].text);
+      const callId = response.id;
+      
+      // Create relationship from document to function call
+      await client.request({
+        method: 'tools/call',
+        params: {
+          name: 'create_connection',
+          arguments: {
+            fromMemoryId: documentId,
+            toMemoryId: callId,
+            type: 'CALLS',
+            properties: {
+              call_count: callCount
+            }
+          }
+        }
+      });
+      
+      return callId;
+    }
+    
+  } catch (error) {
+    console.error(chalk.yellow(`    ⚠️  Function call entity creation failed: ${error.message}`));
+  }
+  return null;
 }
 
 async function checkIfFileIndexed(filePath) {
