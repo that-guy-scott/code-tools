@@ -34,7 +34,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-postgres",
+        "@henkey/postgres-mcp-server",
         "postgresql://dev_user:dev_password_123@localhost:5432/code_tools_dev"
       ]
     },

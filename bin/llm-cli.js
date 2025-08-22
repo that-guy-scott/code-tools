@@ -494,6 +494,13 @@ async function indexProjectKnowledge() {
       console.log(chalk.gray('MCP configuration loaded - Neo4j integration enabled'));
     }
     
+    // Setup PostgreSQL tables and create session
+    const postgresAvailable = await ensurePostgreSQLTables();
+    let sessionId = null;
+    if (postgresAvailable) {
+      sessionId = await createIndexingSession();
+    }
+    
     // Ensure project-specific collection exists
     const collectionExists = await ensureCollectionExists(COLLECTION_NAME);
     if (!collectionExists) {
@@ -530,7 +537,19 @@ async function indexProjectKnowledge() {
         const vectorData = await indexFileWithMCP(filePath, content);
         
         // Create Neo4j entity for the document with vector metadata
-        await createDocumentEntity(filePath, content.length, vectorData);
+        const neo4jResult = await createDocumentEntity(filePath, content.length, vectorData);
+        
+        // Store metadata in PostgreSQL with cross-references
+        if (sessionId && neo4jResult && neo4jResult.success) {
+          await createPostgreSQLRecords(
+            sessionId, 
+            filePath, 
+            content.length, 
+            vectorData, 
+            neo4jResult.documentId, 
+            neo4jResult.projectId
+          );
+        }
         
         console.log(chalk.green(`✅ Indexed: ${filePath}`));
         indexed++;
@@ -539,6 +558,11 @@ async function indexProjectKnowledge() {
         console.error(chalk.red(`❌ Failed to index ${filePath}:`), error.message);
         failed++;
       }
+    }
+    
+    // Update PostgreSQL session with final results
+    if (sessionId) {
+      await updateIndexingSession(sessionId, indexed, failed);
     }
     
     console.log('');
@@ -926,6 +950,191 @@ async function createProjectEntity(projectName) {
   }
 }
 
+async function createPostgreSQLRecords(sessionId, filePath, contentLength, vectorData, documentId, projectId) {
+  try {
+    const relativePath = path.relative(PROJECT_ROOT, filePath);
+    const fileName = path.basename(filePath);
+    const fileExt = path.extname(filePath);
+    const stats = fs.statSync(filePath);
+    
+    console.log(chalk.gray(`  Creating PostgreSQL metadata records...`));
+    
+    // Store file metadata with cross-references
+    const fileMetadataQuery = `
+      INSERT INTO indexed_files (
+        session_id, file_name, file_path, file_extension, 
+        content_length, size_bytes, last_modified, indexed_at,
+        neo4j_document_id, neo4j_project_id, qdrant_collection, 
+        chunk_count, vector_count, status
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+      ) RETURNING id;
+    `;
+    
+    const fileResult = await mcpManager.callTool(
+      'postgres',
+      'query',
+      {
+        sql: `
+          INSERT INTO indexed_files (
+            session_id, file_name, file_path, file_extension, 
+            content_length, size_bytes, last_modified, indexed_at,
+            neo4j_document_id, neo4j_project_id, qdrant_collection, 
+            chunk_count, vector_count, status
+          ) VALUES (
+            ${sessionId}, '${fileName}', '${relativePath}', '${fileExt}',
+            ${contentLength}, ${stats.size}, '${stats.mtime.toISOString()}', '${new Date().toISOString()}',
+            ${documentId}, ${projectId}, '${COLLECTION_NAME}',
+            ${vectorData.chunks}, ${vectorData.vectors_stored}, 'indexed'
+          ) RETURNING id;
+        `
+      }
+    );
+    
+    if (fileResult && fileResult.content && fileResult.content[0]) {
+      const result = JSON.parse(fileResult.content[0].text);
+      if (result.length > 0) {
+        console.log(chalk.gray(`  ✓ PostgreSQL file record created: ${result[0].id}`));
+        return result[0].id;
+      }
+    }
+    
+    console.log(chalk.yellow(`  ⚠️  PostgreSQL integration failed - continuing without metadata`));
+    return null;
+    
+  } catch (error) {
+    console.log(chalk.yellow(`  PostgreSQL metadata error: ${error.message}`));
+    return null;
+  }
+}
+
+async function createIndexingSession() {
+  try {
+    console.log(chalk.gray(`Creating indexing session metadata...`));
+    
+    // Create indexing session record
+    const sessionQuery = `
+      INSERT INTO indexing_sessions (
+        project_name, collection_name, started_at, status, location
+      ) VALUES (
+        $1, $2, $3, $4, $5
+      ) RETURNING id;
+    `;
+    
+    const sessionResult = await mcpManager.callTool(
+      'postgres',
+      'query',
+      {
+        sql: `
+          INSERT INTO indexing_sessions (
+            project_name, collection_name, started_at, status, location
+          ) VALUES (
+            '${PROJECT_NAME}', '${COLLECTION_NAME}', '${new Date().toISOString()}', 'running', '${PROJECT_ROOT}'
+          ) RETURNING id;
+        `
+      }
+    );
+    
+    if (sessionResult && sessionResult.content && sessionResult.content[0]) {
+      const result = JSON.parse(sessionResult.content[0].text);
+      if (result.length > 0) {
+        const sessionId = result[0].id;
+        console.log(chalk.gray(`✓ Indexing session created: ${sessionId}`));
+        return sessionId;
+      }
+    }
+    
+    console.log(chalk.yellow(`Failed to create indexing session - continuing without PostgreSQL metadata`));
+    return null;
+    
+  } catch (error) {
+    console.log(chalk.yellow(`PostgreSQL session creation error: ${error.message}`));
+    return null;
+  }
+}
+
+async function updateIndexingSession(sessionId, indexed, failed) {
+  if (!sessionId) return;
+  
+  try {
+    const updateQuery = `
+      UPDATE indexing_sessions 
+      SET completed_at = $1, status = $2, files_indexed = $3, files_failed = $4
+      WHERE id = $5;
+    `;
+    
+    await mcpManager.callTool(
+      'postgres',
+      'query',
+      {
+        sql: `
+          UPDATE indexing_sessions 
+          SET completed_at = '${new Date().toISOString()}', status = 'completed', 
+              files_indexed = ${indexed}, files_failed = ${failed}
+          WHERE id = ${sessionId};
+        `
+      }
+    );
+    
+    console.log(chalk.gray(`✓ Indexing session updated`));
+    
+  } catch (error) {
+    console.log(chalk.yellow(`PostgreSQL session update error: ${error.message}`));
+  }
+}
+
+async function ensurePostgreSQLTables() {
+  try {
+    console.log(chalk.gray(`Ensuring PostgreSQL tables exist...`));
+    
+    // Create indexing_sessions table
+    const sessionsTableQuery = `
+      CREATE TABLE IF NOT EXISTS indexing_sessions (
+        id SERIAL PRIMARY KEY,
+        project_name VARCHAR(255) NOT NULL,
+        collection_name VARCHAR(255) NOT NULL,
+        started_at TIMESTAMP NOT NULL,
+        completed_at TIMESTAMP,
+        status VARCHAR(50) NOT NULL DEFAULT 'running',
+        location TEXT,
+        files_indexed INTEGER DEFAULT 0,
+        files_failed INTEGER DEFAULT 0
+      );
+    `;
+    
+    // Create indexed_files table
+    const filesTableQuery = `
+      CREATE TABLE IF NOT EXISTS indexed_files (
+        id SERIAL PRIMARY KEY,
+        session_id INTEGER REFERENCES indexing_sessions(id),
+        file_name VARCHAR(255) NOT NULL,
+        file_path TEXT NOT NULL,
+        file_extension VARCHAR(50),
+        content_length INTEGER,
+        size_bytes INTEGER,
+        last_modified TIMESTAMP,
+        indexed_at TIMESTAMP NOT NULL,
+        neo4j_document_id INTEGER,
+        neo4j_project_id INTEGER,
+        qdrant_collection VARCHAR(255),
+        chunk_count INTEGER,
+        vector_count INTEGER,
+        status VARCHAR(50) NOT NULL DEFAULT 'indexed'
+      );
+    `;
+    
+    await mcpManager.callTool('postgres', 'query', { sql: sessionsTableQuery });
+    await mcpManager.callTool('postgres', 'query', { sql: filesTableQuery });
+    
+    console.log(chalk.gray(`✓ PostgreSQL tables ready`));
+    return true;
+    
+  } catch (error) {
+    console.log(chalk.yellow(`PostgreSQL table setup error: ${error.message} - continuing without metadata`));
+    return false;
+  }
+}
+
 async function createDocumentEntity(filePath, contentLength, vectorData) {
   try {
     const relativePath = path.relative(PROJECT_ROOT, filePath);
@@ -994,7 +1203,13 @@ async function createDocumentEntity(filePath, contentLength, vectorData) {
         );
         
         console.log(chalk.gray(`  ✓ Document linked to project in Neo4j`));
-        return { status: 'indexed', entity_created: true, entity_id: documentId };
+        return { 
+          success: true, 
+          documentId: documentId, 
+          projectId: projectId,
+          vectorCount: vectorData.vectors_stored, 
+          chunkCount: vectorData.chunks 
+        };
       } else {
         throw new Error('Invalid response from Neo4j MCP server');
       }
