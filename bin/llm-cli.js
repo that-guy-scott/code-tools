@@ -4,14 +4,56 @@
  * Adapted for project-local Claude infrastructure
  */
 
-const { Command } = require('commander');
-const chalk = require('chalk');
-const path = require('path');
-const fs = require('fs');
-const axios = require('axios');
-require('dotenv').config();
+import { Command } from 'commander';
+import chalk from 'chalk';
+import path from 'path';
+import fs from 'fs';
+import axios from 'axios';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+
+// MCP imports
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+dotenv.config();
 
 const program = new Command();
+
+// Tool directory and default config
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TOOL_ROOT = path.dirname(__dirname); // Parent directory of bin/
+
+// Default MCP configuration
+const DEFAULT_MCP_CONFIG = {
+  mcpServers: {
+    "neo4j-agent-memory": {
+      "command": "npx",
+      "args": ["@knowall-ai/mcp-neo4j-agent-memory"],
+      "env": {
+        "NEO4J_URI": "bolt://localhost:7687",
+        "NEO4J_USERNAME": "neo4j",
+        "NEO4J_PASSWORD": "dev_password_123"
+      }
+    },
+    "qdrant": {
+      "command": "npx",
+      "args": ["better-qdrant-mcp-server"],
+      "env": {
+        "QDRANT_URL": "http://localhost:6333"
+      }
+    },
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://dev_user:dev_password_123@localhost:5432/code_tools_dev"]
+    },
+    "redis": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-redis", "redis://localhost:6379"]
+    }
+  }
+};
 
 // Project context
 const PROJECT_NAME = process.env.CLAUDE_PROJECT_NAME || path.basename(process.cwd());
@@ -31,6 +73,110 @@ function getCollectionName() {
 }
 
 const COLLECTION_NAME = getCollectionName();
+
+// MCP Client Manager
+class MCPManager {
+  constructor() {
+    this.clients = new Map();
+    this.mcpConfig = null;
+  }
+
+  async loadConfig() {
+    try {
+      // Look for .mcp.json in order: tool directory, then project directory, then use defaults
+      const configPaths = [
+        path.join(TOOL_ROOT, '.mcp.json'),
+        path.join(PROJECT_ROOT, '.mcp.json')
+      ];
+      
+      let configData = null;
+      let configSource = null;
+      
+      for (const configPath of configPaths) {
+        if (fs.existsSync(configPath)) {
+          console.log(chalk.gray(`  Using MCP config: ${configPath}`));
+          configData = fs.readFileSync(configPath, 'utf8');
+          configSource = configPath;
+          break;
+        }
+      }
+      
+      if (configData) {
+        this.mcpConfig = JSON.parse(configData);
+      } else {
+        console.log(chalk.gray('  Using built-in MCP configuration'));
+        this.mcpConfig = DEFAULT_MCP_CONFIG;
+      }
+      
+      return true;
+    } catch (error) {
+      console.log(chalk.yellow(`Failed to load MCP config: ${error.message}, using defaults`));
+      this.mcpConfig = DEFAULT_MCP_CONFIG;
+      return true;
+    }
+  }
+
+  async connectToServer(serverName) {
+    if (this.clients.has(serverName)) {
+      return this.clients.get(serverName);
+    }
+
+    if (!this.mcpConfig || !this.mcpConfig.mcpServers || !this.mcpConfig.mcpServers[serverName]) {
+      throw new Error(`Server ${serverName} not found in MCP config`);
+    }
+
+    const serverConfig = this.mcpConfig.mcpServers[serverName];
+    
+    try {
+      // Create transport based on server config
+      const transport = new StdioClientTransport({
+        command: serverConfig.command,
+        args: serverConfig.args || [],
+        env: { ...process.env, ...serverConfig.env }
+      });
+
+      // Create and connect client
+      const client = new Client({
+        name: 'llm-cli',
+        version: '2.0.0'
+      });
+
+      await client.connect(transport);
+      this.clients.set(serverName, client);
+      
+      console.log(chalk.gray(`  ✓ Connected to MCP server: ${serverName}`));
+      return client;
+      
+    } catch (error) {
+      console.log(chalk.yellow(`  Warning: Could not connect to ${serverName}: ${error.message}`));
+      throw error;
+    }
+  }
+
+  async callTool(serverName, toolName, args) {
+    try {
+      const client = await this.connectToServer(serverName);
+      return await client.callTool({ name: toolName, arguments: args });
+    } catch (error) {
+      console.log(chalk.yellow(`MCP call failed (${serverName}/${toolName}): ${error.message}`));
+      throw error;
+    }
+  }
+
+  async disconnect() {
+    for (const [serverName, client] of this.clients.entries()) {
+      try {
+        await client.close();
+      } catch (error) {
+        console.log(chalk.yellow(`Warning: Failed to close ${serverName}: ${error.message}`));
+      }
+    }
+    this.clients.clear();
+  }
+}
+
+// Global MCP manager instance
+const mcpManager = new MCPManager();
 
 // Configuration
 const DEFAULT_CONFIG = {
@@ -342,6 +488,12 @@ async function indexProjectKnowledge() {
   console.log(chalk.gray(`Collection: ${COLLECTION_NAME}`));
   
   try {
+    // Initialize MCP manager
+    const mcpAvailable = await mcpManager.loadConfig();
+    if (mcpAvailable) {
+      console.log(chalk.gray('MCP configuration loaded - Neo4j integration enabled'));
+    }
+    
     // Ensure project-specific collection exists
     const collectionExists = await ensureCollectionExists(COLLECTION_NAME);
     if (!collectionExists) {
@@ -359,6 +511,13 @@ async function indexProjectKnowledge() {
     for (const filePath of filesToIndex) {
       try {
         console.log(chalk.cyan(`🔄 Indexing: ${filePath}`));
+        
+        // Check if file is already indexed
+        const alreadyIndexed = await checkIfFileIndexed(filePath);
+        if (alreadyIndexed) {
+          console.log(chalk.yellow(`⚠️  Already indexed, skipping: ${path.basename(filePath)}`));
+          continue;
+        }
         
         // Read file content
         const content = fs.readFileSync(filePath, 'utf8');
@@ -387,23 +546,141 @@ async function indexProjectKnowledge() {
     console.log(chalk.cyan(`📊 Results: ${indexed} indexed, ${failed} failed`));
     console.log(chalk.gray('Documents are now searchable via --semantic-search'));
     
+    // Clean up MCP connections
+    await mcpManager.disconnect();
+    
   } catch (error) {
     console.error(chalk.red('Error during knowledge indexing:'), error.message);
+    await mcpManager.disconnect();
   }
 }
 
+function loadGitignorePatterns() {
+  const gitignorePath = path.join(PROJECT_ROOT, '.gitignore');
+  if (!fs.existsSync(gitignorePath)) {
+    return [];
+  }
+  
+  try {
+    const content = fs.readFileSync(gitignorePath, 'utf8');
+    return content
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line && !line.startsWith('#'))
+      .map(pattern => {
+        // Normalize patterns for matching
+        if (pattern.endsWith('/')) {
+          return pattern.slice(0, -1); // Remove trailing slash
+        }
+        return pattern;
+      });
+  } catch (error) {
+    console.log(chalk.yellow(`Warning: Could not read .gitignore: ${error.message}`));
+    return [];
+  }
+}
+
+function isGitignored(filePath, patterns) {
+  for (const pattern of patterns) {
+    if (matchesGitignorePattern(filePath, pattern)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function matchesGitignorePattern(filePath, pattern) {
+  // Handle negation patterns
+  if (pattern.startsWith('!')) {
+    return false; // Negation patterns are complex, skip for now
+  }
+  
+  // Convert gitignore pattern to regex
+  let regex = pattern
+    .replace(/\./g, '\\.')  // Escape dots
+    .replace(/\*/g, '[^/]*') // * matches anything except /
+    .replace(/\*\*/g, '.*')  // ** matches anything including /
+    .replace(/\?/g, '[^/]'); // ? matches single char except /
+  
+  // If pattern doesn't start with /, it can match at any directory level
+  if (!pattern.startsWith('/')) {
+    regex = `(^|/)${regex}`;
+  } else {
+    regex = regex.slice(1); // Remove leading / from pattern
+  }
+  
+  // If pattern doesn't end with specific file, it matches directories too
+  if (!pattern.includes('.') && !pattern.endsWith('*')) {
+    regex += '(/|$)';
+  }
+  
+  const regexPattern = new RegExp(regex);
+  return regexPattern.test(filePath);
+}
+
 async function discoverIndexableFiles() {
-  const indexableExtensions = ['.md', '.txt', '.js', '.ts', '.json', '.py', '.sh'];
-  const excludePatterns = ['node_modules', '.git', 'dist', 'build', '.env'];
+  // Load .gitignore patterns
+  const gitignorePatterns = loadGitignorePatterns();
+  
+  // Common exclusion patterns (fallback if no .gitignore)
+  const defaultExcludes = [
+    'node_modules', '.git', 'dist', 'build', '.env', '.env.*',
+    '*.log', '*.tmp', '*.cache', '.DS_Store', 'Thumbs.db',
+    '.vscode', '.idea', '__pycache__', '*.pyc', '.pytest_cache',
+    'target/', 'bin/', 'obj/', '.gradle/', '.mvn/'
+  ];
+  
+  function isBinaryFile(filePath) {
+    try {
+      // Read first 1024 bytes to detect binary content
+      const fd = fs.openSync(filePath, 'r');
+      const buffer = Buffer.alloc(1024);
+      const bytesRead = fs.readSync(fd, buffer, 0, 1024, 0);
+      fs.closeSync(fd);
+      
+      if (bytesRead === 0) return false; // Empty file is text
+      
+      // Check for null bytes (common in binary files)
+      for (let i = 0; i < bytesRead; i++) {
+        if (buffer[i] === 0) return true;
+      }
+      
+      // Check for high percentage of non-printable characters
+      let nonPrintable = 0;
+      for (let i = 0; i < bytesRead; i++) {
+        const byte = buffer[i];
+        if (byte < 32 && byte !== 9 && byte !== 10 && byte !== 13) {
+          nonPrintable++;
+        }
+      }
+      
+      return (nonPrintable / bytesRead) > 0.3; // More than 30% non-printable
+    } catch (error) {
+      return true; // If we can't read it, assume binary
+    }
+  }
   
   function shouldIndex(filePath) {
-    // Check if file has indexable extension
-    const hasValidExt = indexableExtensions.some(ext => filePath.endsWith(ext));
-    if (!hasValidExt) return false;
+    const relativePath = path.relative(PROJECT_ROOT, filePath);
+    const fileName = path.basename(filePath);
     
-    // Check if path contains excluded patterns
-    const isExcluded = excludePatterns.some(pattern => filePath.includes(pattern));
-    return !isExcluded;
+    // Skip binary files
+    if (isBinaryFile(filePath)) return false;
+    
+    // Check against .gitignore patterns
+    if (gitignorePatterns.length > 0) {
+      return !isGitignored(relativePath, gitignorePatterns);
+    }
+    
+    // Fallback to default exclusion patterns
+    return !defaultExcludes.some(pattern => {
+      if (pattern.includes('*')) {
+        // Simple glob matching
+        const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+        return regex.test(fileName) || regex.test(relativePath);
+      }
+      return relativePath.includes(pattern) || fileName.includes(pattern);
+    });
   }
   
   function scanDirectory(dir, files = []) {
@@ -413,8 +690,25 @@ async function discoverIndexableFiles() {
       const fullPath = path.join(dir, entry.name);
       
       if (entry.isDirectory()) {
-        // Skip excluded directories
-        if (!excludePatterns.some(pattern => entry.name.includes(pattern))) {
+        // Check if directory should be indexed (using same logic as files)
+        const relativePath = path.relative(PROJECT_ROOT, fullPath);
+        
+        // Skip directories that match gitignore or default exclusion patterns
+        let shouldSkip = false;
+        
+        if (gitignorePatterns.length > 0) {
+          shouldSkip = isGitignored(relativePath, gitignorePatterns);
+        } else {
+          shouldSkip = defaultExcludes.some(pattern => {
+            if (pattern.includes('*')) {
+              const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+              return regex.test(entry.name) || regex.test(relativePath);
+            }
+            return entry.name.includes(pattern) || relativePath.includes(pattern);
+          });
+        }
+        
+        if (!shouldSkip) {
           scanDirectory(fullPath, files);
         }
       } else if (entry.isFile() && shouldIndex(fullPath)) {
@@ -502,6 +796,33 @@ async function generateOllamaEmbedding(text) {
   }
 }
 
+async function checkIfFileIndexed(filePath) {
+  try {
+    const relativePath = path.relative(PROJECT_ROOT, filePath);
+    
+    // Search for vectors with this file path
+    const response = await axios.post(`http://localhost:6333/collections/${COLLECTION_NAME}/points/search`, {
+      vector: Array(768).fill(0), // Dummy vector for search
+      limit: 1,
+      filter: {
+        must: [
+          {
+            key: "file_path",
+            match: { value: relativePath }
+          }
+        ]
+      }
+    }, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    return response.data && response.data.result && response.data.result.length > 0;
+  } catch (error) {
+    // If collection doesn't exist or search fails, assume not indexed
+    return false;
+  }
+}
+
 async function storeInQdrant(points) {
   try {
     const response = await axios.put(`http://localhost:6333/collections/${COLLECTION_NAME}/points`, {
@@ -550,28 +871,56 @@ async function createDocumentEntity(filePath, contentLength, vectorData) {
     
     console.log(chalk.gray(`  Creating Neo4j document entity for ${fileName}...`));
     
-    // Try to detect if we're in Claude Code MCP context
-    const isClaudeCodeContext = typeof global.mcp__neo4j_agent_memory__create_memory === 'function';
-    
-    if (isClaudeCodeContext) {
+    // Try to use MCP Neo4j integration
+    try {
       console.log(chalk.gray(`  Creating Neo4j document entity...`));
-      // REAL Neo4j MCP calls when available
-      const memory = await global.mcp__neo4j_agent_memory__create_memory('document', documentData);
-      const documentId = memory.memory._id;
-      await global.mcp__neo4j_agent_memory__create_connection(0, documentId, 'CONTAINS', {
-        indexed_at: new Date().toISOString(),
-        vector_count: vectorData.vectors_stored,
-        chunk_count: vectorData.chunks
-      });
-      console.log(chalk.gray(`  ✓ Neo4j entity created: ${documentId}`));
-      return { status: 'indexed', entity_created: true, entity_id: documentId };
-    } else {
-      console.log(chalk.gray(`  ✓ Document metadata prepared (run in Claude Code for Neo4j integration)`));
+      
+      // Call MCP Neo4j agent memory to create document
+      const createResult = await mcpManager.callTool(
+        'neo4j-agent-memory',
+        'create_memory',
+        {
+          label: 'document',
+          properties: documentData
+        }
+      );
+      
+      if (createResult && createResult.content && createResult.content[0]) {
+        const memory = JSON.parse(createResult.content[0].text);
+        const documentId = memory.memory._id;
+        
+        console.log(chalk.gray(`  ✓ Neo4j entity created: ${documentId}`));
+        
+        // Link document to project
+        await mcpManager.callTool(
+          'neo4j-agent-memory',
+          'create_connection',
+          {
+            fromMemoryId: 0, // project entity
+            toMemoryId: documentId,
+            type: 'CONTAINS',
+            properties: {
+              indexed_at: new Date().toISOString(),
+              vector_count: vectorData.vectors_stored,
+              chunk_count: vectorData.chunks
+            }
+          }
+        );
+        
+        console.log(chalk.gray(`  ✓ Document linked to project in Neo4j`));
+        return { status: 'indexed', entity_created: true, entity_id: documentId };
+      } else {
+        throw new Error('Invalid response from Neo4j MCP server');
+      }
+      
+    } catch (error) {
+      console.log(chalk.yellow(`  Neo4j MCP integration failed: ${error.message}`));
+      console.log(chalk.gray(`  ✓ Document metadata prepared (Neo4j integration failed)`));
       return { 
         status: 'indexed', 
         entity_created: false, 
         metadata: documentData,
-        note: 'Run in Claude Code for full Neo4j integration'
+        error: error.message
       };
     }
     
@@ -747,14 +1096,28 @@ async function processOllamaPrompt(prompt, options) {
 }
 
 // Handle uncaught errors
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
   console.error(chalk.red('Uncaught Exception:'), error.message);
+  await mcpManager.disconnect();
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
+process.on('unhandledRejection', async (reason, promise) => {
   console.error(chalk.red('Unhandled Rejection at:'), promise, chalk.red('reason:'), reason);
+  await mcpManager.disconnect();
   process.exit(1);
+});
+
+process.on('SIGINT', async () => {
+  console.log(chalk.yellow('\nReceived SIGINT. Cleaning up...'));
+  await mcpManager.disconnect();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  console.log(chalk.yellow('\nReceived SIGTERM. Cleaning up...'));
+  await mcpManager.disconnect();
+  process.exit(0);
 });
 
 program.parse();
