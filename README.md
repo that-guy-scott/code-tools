@@ -72,3 +72,38 @@ docker-compose up -d
 ## 📄 License
 
 MIT License
+
+
+## Notes
+📦 Complete MCP Server Setup Commands
+
+# Neo4j Agent Memory - Knowledge graph and persistent memory
+npm install @knowall-ai/mcp-neo4j-agent-memory
+
+# Puppeteer - Browser automation and web scraping
+npm install @modelcontextprotocol/server-puppeteer
+
+# Qdrant - Vector database for semantic search
+npm install better-qdrant-mcp-server
+
+🔧 One-Line Installation
+
+npm install @knowall-ai/mcp-neo4j-agent-memory @modelcontextprotocol/server-puppeteer
+better-qdrant-mcp-server
+
+📋 Prerequisites
+
+Before running these commands, ensure you have:
+
+- Docker services running:
+  docker-compose up -d  # Starts Neo4j, Qdrant, PostgreSQL, Redis
+- Node.js environment with npm available
+
+⚡ What Each Package Provides
+
+- Neo4j MCP → Persistent project knowledge and relationships
+- Puppeteer MCP → Browser automation, screenshots, web interaction
+- Qdrant MCP → Vector embeddings and semantic search
+
+After installation, you'll need to restart Claude Code to load the new MCP servers from your
+~/.claude.json configuration.

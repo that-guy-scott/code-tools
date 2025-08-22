@@ -6,6 +6,7 @@
 2. **Limit all new code contributions and code updates** to a maximum of 200 lines per change. This helps maintain code quality, reviewability, and project manageability.
 3. **ALWAYS use and update the Neo4j Knowledge Graph** for persistent project knowledge.
 4. **ALWAYS follow Strategic Git Workflow practices** for maintainable project history.
+5. **NEVER Create placeholder or Fake code** you must write all methods/functions/classes to completion.
 
 ## Strategic Git Workflow
 

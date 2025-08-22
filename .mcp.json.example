@@ -1,5 +1,4 @@
-{
-  "mcpServers": {
+"mcpServers": {
     "jetbrains": {
       "type": "sse",
       "url": "http://localhost:64343/sse"
@@ -46,13 +45,5 @@
         "@modelcontextprotocol/server-redis",
         "redis://localhost:6379"
       ]
-    },
-    "context7": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@upstash/context7-mcp@latest"
-      ]
     }
-  }
-}
+  },
