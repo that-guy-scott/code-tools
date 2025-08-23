@@ -1,17 +1,18 @@
 {
   "name": "code-tools",
   "version": "1.0.0",
+  "type": "module",
   "description": "Claude Code MCP ecosystem with streamlined semantic knowledge",
   "main": "dist/index.js",
   "bin": {
-    "llm": "./dist/index.js"
+    "code-tools": "./dist/index.js"
   },
-  "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js --external:@modelcontextprotocol/sdk --packages=external --banner:js=\"#!/usr/bin/env node\"",
+    "build:tsc": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "build:watch": "tsc --watch",
+    "build:watch": "esbuild src/index.ts --bundle --platform=node --target=node18 --format=cjs --outfile=dist/index.js --external:@modelcontextprotocol/sdk --packages=external --banner:js=\"#!/usr/bin/env node\" --watch",
     "test": "NODE_OPTIONS='--max-old-space-size=8192' vitest",
     "test:watch": "NODE_OPTIONS='--max-old-space-size=8192' vitest --watch",
     "test:ui": "NODE_OPTIONS='--max-old-space-size=8192' vitest --ui",
@@ -35,12 +36,14 @@
   "author": "Scott Angel",
   "license": "MIT",
   "devDependencies": {
+    "@types/babel__traverse": "^7.28.0",
     "@types/node": "^24.3.0",
+    "esbuild": "^0.24.0",
     "memfs": "^4.37.1",
     "nock": "^14.0.10",
     "sinon": "^21.0.0",
-    "typescript": "^5.7.2",
     "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
     "vitest": "^3.2.4"
   }
 }

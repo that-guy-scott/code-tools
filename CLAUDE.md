@@ -3,7 +3,7 @@
 ## Core Rules
 
 1. **Always utilize the JetBrains Marketplace Code Protocol (MCP)** whenever possible.
-2. **Limit all new code contributions and code updates** to a maximum of 200 lines per change. This helps maintain code quality, reviewability, and project manageability.
+2. **Limit all new code contributions and code updates** to a maximum of 400 lines per change. This helps maintain code quality, reviewability, and project manageability.
 3. **ALWAYS use and update the Neo4j Knowledge Graph** for persistent project knowledge.
 4. **ALWAYS follow Strategic Git Workflow practices** for maintainable project history.
 5. **NEVER Create placeholder or Fake code** you must write all methods/functions/classes to completion.
@@ -157,17 +157,17 @@
 ### Hybrid Intelligence: Neo4j + Nomic Embeddings + Qdrant
 
 **BEFORE starting any development task:**
-1. **Hybrid search** for related work: `llm --knowledge-search "your task description"`
+1. **Hybrid search** for related work: `code-tools --knowledge-search "your task description"`
 2. **Graph context** from Neo4j memories: Search related entities (limit: 3, depth: 1)
 3. **Cross-reference** findings between graph knowledge and semantic matches
 
 **DURING development work:**
-1. **Search similar patterns** to avoid reinventing solutions: `llm --semantic-search "pattern description"`
+1. **Search similar patterns** to avoid reinventing solutions: `code-tools --semantic-search "pattern description"`
 2. **Document new entities** in Neo4j as you discover components
 3. **Note semantic relationships** between similar content
 
 **AFTER completing any task:**
-1. **Index new knowledge**: `llm --index-knowledge` to update semantic vectors
+1. **Index new knowledge**: `code-tools --index-knowledge` to update semantic vectors
 2. **Update Neo4j entities** with new observations and relationships
 3. **Validate cross-references** between graph and semantic knowledge
 
@@ -190,7 +190,7 @@
 **Knowledge Indexing:**
 ```bash
 # Index project files for semantic search
-llm --index-knowledge
+code-tools --index-knowledge
 
 # Uses: Ollama nomic-embed-text + MCP Qdrant storage + Neo4j linking
 ```
@@ -198,8 +198,8 @@ llm --index-knowledge
 **Semantic Search:**
 ```bash
 # Search project knowledge semantically
-llm --semantic-search "authentication patterns"
-llm --semantic-search "MCP server configuration"
+code-tools --semantic-search "authentication patterns"
+code-tools --semantic-search "MCP server configuration"
 
 # Uses: MCP Qdrant server for vector similarity search
 ```
@@ -207,8 +207,8 @@ llm --semantic-search "MCP server configuration"
 **Hybrid Knowledge Search:**
 ```bash
 # Combine Neo4j graph + semantic search
-llm --knowledge-search "database connection issues"
-llm --knowledge-search "CLI command structure"
+code-tools --knowledge-search "database connection issues"
+code-tools --knowledge-search "CLI command structure"
 
 # Uses: Neo4j agent memory + Qdrant semantic + fusion scoring
 ```

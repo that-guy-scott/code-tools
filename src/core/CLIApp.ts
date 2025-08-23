@@ -39,8 +39,8 @@ export class CLIApp {
     const projectName = this.config.app.project.name;
     
     this.program
-      .name('llm')
-      .description(`Universal LLM CLI v2 - Local for ${projectName}`)
+      .name('code-tools')
+      .description(`Code Tools CLI - Local for ${projectName}`)
       .version('2.0.0-local');
 
     this.program

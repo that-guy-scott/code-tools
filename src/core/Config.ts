@@ -10,9 +10,19 @@ export class Config {
   private _mcpConfig: MCPConfig;
 
   private constructor() {
-    // Get the actual source directory, not the compiled directory
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
+    // Get the directory path - compatible with both ES modules and CommonJS
+    const getModuleDir = (): string => {
+      if (typeof import.meta !== 'undefined' && import.meta.url) {
+        // ES modules
+        const __filename = fileURLToPath(import.meta.url);
+        return path.dirname(__filename);
+      } else {
+        // CommonJS (when bundled)
+        return path.dirname(__filename);
+      }
+    };
+    
+    const __dirname = getModuleDir();
     
     // If running from dist/, go up to project root; otherwise go up from src/
     const isCompiledVersion = __dirname.includes('/dist/');
@@ -49,7 +59,7 @@ export class Config {
       neo4j: {
         uri: process.env.NEO4J_URI || CONNECTION_BUILDERS.neo4j(),
         username: process.env.NEO4J_USERNAME || DATABASE_DEFAULTS.NEO4J_USER,
-        password: process.env.NEO4J_PASSWORD || DATABASE_DEFAULTS.NEO4J_PASSWORD
+        password: process.env.NEO4J_PASSWORD || 'dev_password_123'
       },
       qdrant: {
         url: process.env.QDRANT_URL || CONNECTION_BUILDERS.qdrant()
@@ -62,7 +72,16 @@ export class Config {
         defaultModel: process.env.OLLAMA_DEFAULT_MODEL || DEFAULT_MODELS.OLLAMA
       },
       gemini: {
+        apiKey: process.env.GOOGLE_API_KEY || '',
         defaultModel: process.env.GEMINI_DEFAULT_MODEL || DEFAULT_MODELS.GEMINI
+      },
+      openai: {
+        apiKey: process.env.OPENAI_API_KEY || '',
+        defaultModel: process.env.OPENAI_DEFAULT_MODEL || DEFAULT_MODELS.OPENAI
+      },
+      anthropic: {
+        apiKey: process.env.ANTHROPIC_API_KEY || '',
+        defaultModel: process.env.ANTHROPIC_DEFAULT_MODEL || DEFAULT_MODELS.ANTHROPIC
       }
     };
 

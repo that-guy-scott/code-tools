@@ -3,6 +3,18 @@ import { Logger } from '../core/Logger.js';
 import { MCPManager } from '../mcp/MCPManager.js';
 import { MCPTools } from '../mcp/MCPTools.js';
 
+/**
+ * Command handler for displaying system information and status.
+ * 
+ * This class provides various information commands including project details,
+ * provider status, available models, and MCP tool information.
+ * 
+ * @example
+ * ```typescript
+ * const infoCommand = new InfoCommand(mcpManager);
+ * await infoCommand.showProjectInfo();
+ * ```
+ */
 export class InfoCommand {
   private config = Config.getInstance();
   private logger = Logger.getInstance();
@@ -14,6 +26,11 @@ export class InfoCommand {
     this.mcpTools = new MCPTools(this.mcpManager);
   }
 
+  /**
+   * Display comprehensive project information including configuration and database connections.
+   * 
+   * Shows project details, configuration settings, and sanitized database connection strings.
+   */
   public async showProjectInfo(): Promise<void> {
     const projectConfig = this.config.app.project;
     const collectionName = this.config.getCollectionName();
@@ -38,30 +55,41 @@ export class InfoCommand {
     this.logger.keyValue('PostgreSQL', this.config.app.postgres.connectionString.replace(/:[^:@]*@/, ':***@'));
   }
 
+  /**
+   * Display the status and availability of all LLM providers.
+   * 
+   * Delegates to PromptCommand's provider listing functionality.
+   */
   public async showProviders(): Promise<void> {
-    this.logger.section('Available LLM Providers:');
-    this.logger.item('  • ollama (default)', 'primary');
-    this.logger.item('  • gemini', 'primary');
-    this.logger.item('  • openai (not implemented)', 'secondary');
-    this.logger.item('  • anthropic (not implemented)', 'secondary');
+    const promptCommand = new (await import('./PromptCommand.js')).PromptCommand(this.mcpManager);
+    await promptCommand.listProviders();
   }
 
+  /**
+   * Display all available models from all providers.
+   * 
+   * Delegates to PromptCommand's model listing functionality.
+   */
   public async showModels(): Promise<void> {
-    this.logger.section('Available Models:');
-    this.logger.item('Ollama:', 'primary');
-    this.logger.keyValue('  Default', this.config.app.ollama.defaultModel);
-    this.logger.item('Gemini:', 'primary');
-    this.logger.keyValue('  Default', this.config.app.gemini.defaultModel);
-    this.logger.separator();
-    this.logger.warn('Use --list-ollama-models to see available Ollama models');
+    const promptCommand = new (await import('./PromptCommand.js')).PromptCommand(this.mcpManager);
+    await promptCommand.listAllModels();
   }
 
+  /**
+   * Display available models specifically from the Ollama provider.
+   * 
+   * Delegates to PromptCommand's provider-specific model listing.
+   */
   public async showOllamaModels(): Promise<void> {
-    // TODO: Implement Ollama API call to list models
-    this.logger.info('Ollama model listing not yet implemented');
-    this.logger.item('This feature will be implemented with the LLM provider architecture', 'secondary');
+    const promptCommand = new (await import('./PromptCommand.js')).PromptCommand(this.mcpManager);
+    await promptCommand.listModelsForProvider('ollama');
   }
 
+  /**
+   * Display all available MCP (Model Context Protocol) tools and their capabilities.
+   * 
+   * Uses the MCPTools utility to show tool information from all connected MCP servers.
+   */
   public async showMCPTools(): Promise<void> {
     await this.mcpTools.displayAvailableTools();
   }

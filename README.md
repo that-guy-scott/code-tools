@@ -23,8 +23,8 @@ docker-compose up -d
 # Set up MCP servers (one-time)
 ./mcp/setup-mcp.sh
 
-# Test LLM CLI
-./bin/llm-cli.js --project-info
+# Test code tools CLI
+node dist/index.js --project-info
 ```
 
 ## 🔧 What's Included

@@ -29,6 +29,15 @@ export interface LLMConfig {
     defaultModel: string;
   };
   gemini: {
+    apiKey: string;
+    defaultModel: string;
+  };
+  openai: {
+    apiKey: string;
+    defaultModel: string;
+  };
+  anthropic: {
+    apiKey: string;
     defaultModel: string;
   };
 }
@@ -73,16 +82,20 @@ export interface EmbeddingVector {
 }
 
 export interface SearchResult {
+  content: string;
+  file_path: string;
   score: number;
-  payload: {
-    file_name: string;
-    file_path: string;
-    chunk_index: number;
-    chunk_text: string;
-    [key: string]: unknown;
-  };
-  project?: string;
+  metadata: Record<string, unknown>;
+  chunk_index: number;
+  chunk_type: string;
+}
+
+export interface SearchOptions {
+  limit?: number;
   collection?: string;
+  searchAll?: boolean;
+  threshold?: number;
+  includeMetadata?: boolean;
 }
 
 export interface CollectionInfo {
@@ -90,22 +103,43 @@ export interface CollectionInfo {
   points_count: number;
 }
 
+export interface FileChunk {
+  content: string;
+  file_path: string;
+  chunk_index: number;
+  chunk_type: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface IndexingResult {
+  totalFiles: number;
+  indexedFiles: number;
+  failedFiles: number;
+  errors: Error[];
+  chunks: ChunkData[];
+  vectorCount: number;
+  success: boolean;
+}
+
 // Code analysis types
 export interface CodeStructure {
+  language: string;
+  file: string;
   classes: ClassInfo[];
   functions: FunctionInfo[];
   imports: ImportInfo[];
   exports: ExportInfo[];
   variables: VariableInfo[];
-  dependencies: string[];
+  calls: CallInfo[];
 }
 
 export interface ClassInfo {
   name: string;
   line: number;
+  superClass?: string;
   endLine?: number;
-  methods: MethodInfo[];
-  properties: PropertyInfo[];
+  methods?: MethodInfo[];
+  properties?: PropertyInfo[];
   extends?: string;
   implements?: string[];
 }
@@ -130,10 +164,11 @@ export interface PropertyInfo {
 export interface FunctionInfo {
   name: string;
   line: number;
-  endLine?: number;
   async: boolean;
-  parameters: string[];
-  isExported: boolean;
+  generator?: boolean;
+  endLine?: number;
+  parameters?: string[];
+  isExported?: boolean;
 }
 
 export interface ImportInfo {
@@ -143,16 +178,21 @@ export interface ImportInfo {
 }
 
 export interface ImportSpecifier {
-  type: 'ImportDefaultSpecifier' | 'ImportNamespaceSpecifier' | 'ImportSpecifier';
-  local: string;
+  name: string;
+  type: 'default' | 'namespace' | 'named';
   imported?: string;
 }
 
-export interface ExportInfo {
-  type: 'ExportDefaultDeclaration' | 'ExportNamedDeclaration';
-  declaration?: string;
+export interface CallInfo {
+  name: string;
   line: number;
-  specifiers?: string[];
+  type: 'function' | 'method';
+}
+
+export interface ExportInfo {
+  type: 'default' | 'named';
+  name?: string;
+  specifiers?: Array<{ name: string; local: string }>;
 }
 
 export interface VariableInfo {
@@ -186,11 +226,39 @@ export interface ChunkData {
   embedding?: number[];
 }
 
-export interface IndexingResult {
-  chunks: ChunkData[];
-  codeStructure?: CodeStructure;
-  vectorCount: number;
-  success: boolean;
+
+// LLM Provider types
+export interface LLMProviderOptions {
+  host?: string;
+  defaultModel?: string;
+  apiKey?: string;
+  timeout?: number;
+  [key: string]: any;
+}
+
+export interface LLMModel {
+  name: string;
+  displayName?: string;
+  description?: string;
+  size?: number;
+  isDefault?: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface LLMResponse {
+  content: string;
+  model: string;
+  provider: string;
+  usage?: {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  };
+  metadata?: Record<string, any>;
+}
+
+export interface StreamingCallback {
+  (chunk: string, done: boolean, metadata?: any): void;
 }
 
 // CLI types
@@ -198,6 +266,9 @@ export interface CLIOptions {
   provider: string;
   model?: string;
   temperature: number;
+  topP?: number;
+  topK?: number;
+  maxTokens?: number;
   output: 'text' | 'json';
   stream: boolean;
   listProviders: boolean;
@@ -222,15 +293,6 @@ export interface PromptContext {
 export interface LLMMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
-}
-
-export interface LLMResponse {
-  content: string;
-  usage?: {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-  };
 }
 
 export interface LLMProvider {

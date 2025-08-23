@@ -35,7 +35,7 @@ export class MCPClient {
 
       // Create and connect client
       this.client = new Client({
-        name: 'llm-cli',
+        name: 'code-tools',
         version: '2.0.0'
       });
 

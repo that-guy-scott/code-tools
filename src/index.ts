@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { CLIApp } from './core/CLIApp.js';
 import { Logger } from './core/Logger.js';
 
@@ -41,17 +39,24 @@ async function main(): Promise<void> {
   }
 }
 
-// Only run main if this file is executed directly
-// More robust check that works across platforms
-if (import.meta.url.startsWith('file:')) {
-  const modulePath = new URL(import.meta.url).pathname;
-  const scriptPath = process.argv[1];
-  if (scriptPath && (modulePath === scriptPath || modulePath.endsWith(scriptPath))) {
-    main().catch(error => {
-      console.error('Fatal error:', error);
-      process.exit(1);
-    });
+// Entry point detection - compatible with both ES modules and CommonJS
+const isMainModule = (() => {
+  // For ES modules
+  if (typeof import.meta !== 'undefined' && import.meta.url) {
+    const modulePath = new URL(import.meta.url).pathname;
+    const mainScript = process.argv[1];
+    return modulePath === mainScript || (mainScript && modulePath.endsWith(mainScript));
   }
+  
+  // For CommonJS (when bundled)
+  return require.main === module;
+})();
+
+if (isMainModule) {
+  main().catch((error) => {
+    console.error('Fatal error:', error);
+    process.exit(1);
+  });
 }
 
 export { CLIApp } from './core/CLIApp.js';
