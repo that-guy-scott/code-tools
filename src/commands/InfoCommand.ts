@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import { Config } from '../core/Config.js';
 import { Logger } from '../core/Logger.js';
 import { MCPManager } from '../mcp/MCPManager.js';
@@ -19,48 +18,48 @@ export class InfoCommand {
     const projectConfig = this.config.app.project;
     const collectionName = this.config.getCollectionName();
 
-    console.log(chalk.blue.bold('📋 Project Information:'));
-    console.log(chalk.cyan(`Project Name: ${projectConfig.name}`));
-    console.log(chalk.gray(`Project Root: ${projectConfig.root}`));
-    console.log(chalk.gray(`Claude Directory: ${projectConfig.claudeDir}`));
-    console.log(chalk.gray(`Collection Name: ${collectionName}`));
-    console.log();
+    this.logger.section('📋 Project Information:');
+    this.logger.item(`Project Name: ${projectConfig.name}`, 'primary');
+    this.logger.keyValue('Project Root', projectConfig.root);
+    this.logger.keyValue('Claude Directory', projectConfig.claudeDir);
+    this.logger.keyValue('Collection Name', collectionName);
+    this.logger.separator();
 
-    console.log(chalk.blue.bold('🔧 Configuration:'));
-    console.log(chalk.gray(`Ollama Host: ${this.config.app.ollama.host}`));
-    console.log(chalk.gray(`Ollama Default Model: ${this.config.app.ollama.defaultModel}`));
-    console.log(chalk.gray(`Gemini Default Model: ${this.config.app.gemini.defaultModel}`));
-    console.log();
+    this.logger.section('🔧 Configuration:');
+    this.logger.keyValue('Ollama Host', this.config.app.ollama.host);
+    this.logger.keyValue('Ollama Default Model', this.config.app.ollama.defaultModel);
+    this.logger.keyValue('Gemini Default Model', this.config.app.gemini.defaultModel);
+    this.logger.separator();
 
-    console.log(chalk.blue.bold('💾 Database Connections:'));
-    console.log(chalk.gray(`Neo4j: ${this.config.app.neo4j.uri}`));
-    console.log(chalk.gray(`Qdrant: ${this.config.app.qdrant.url}`));
-    console.log(chalk.gray(`Redis: ${this.config.app.redis.url}`));
-    console.log(chalk.gray(`PostgreSQL: ${this.config.app.postgres.connectionString.replace(/:[^:@]*@/, ':***@')}`));
+    this.logger.section('💾 Database Connections:');
+    this.logger.keyValue('Neo4j', this.config.app.neo4j.uri);
+    this.logger.keyValue('Qdrant', this.config.app.qdrant.url);
+    this.logger.keyValue('Redis', this.config.app.redis.url);
+    this.logger.keyValue('PostgreSQL', this.config.app.postgres.connectionString.replace(/:[^:@]*@/, ':***@'));
   }
 
   public async showProviders(): Promise<void> {
-    console.log(chalk.blue.bold('Available LLM Providers:'));
-    console.log(chalk.white('  • ollama (default)'));
-    console.log(chalk.white('  • gemini'));
-    console.log(chalk.gray('  • openai (not implemented)'));
-    console.log(chalk.gray('  • anthropic (not implemented)'));
+    this.logger.section('Available LLM Providers:');
+    this.logger.item('  • ollama (default)', 'primary');
+    this.logger.item('  • gemini', 'primary');
+    this.logger.item('  • openai (not implemented)', 'secondary');
+    this.logger.item('  • anthropic (not implemented)', 'secondary');
   }
 
   public async showModels(): Promise<void> {
-    console.log(chalk.blue.bold('Available Models:'));
-    console.log(chalk.cyan('Ollama:'));
-    console.log(chalk.gray(`  Default: ${this.config.app.ollama.defaultModel}`));
-    console.log(chalk.cyan('Gemini:'));
-    console.log(chalk.gray(`  Default: ${this.config.app.gemini.defaultModel}`));
-    console.log();
-    console.log(chalk.yellow('Use --list-ollama-models to see available Ollama models'));
+    this.logger.section('Available Models:');
+    this.logger.item('Ollama:', 'primary');
+    this.logger.keyValue('  Default', this.config.app.ollama.defaultModel);
+    this.logger.item('Gemini:', 'primary');
+    this.logger.keyValue('  Default', this.config.app.gemini.defaultModel);
+    this.logger.separator();
+    this.logger.warn('Use --list-ollama-models to see available Ollama models');
   }
 
   public async showOllamaModels(): Promise<void> {
     // TODO: Implement Ollama API call to list models
     this.logger.info('Ollama model listing not yet implemented');
-    console.log(chalk.gray('This feature will be implemented with the LLM provider architecture'));
+    this.logger.item('This feature will be implemented with the LLM provider architecture', 'secondary');
   }
 
   public async showMCPTools(): Promise<void> {

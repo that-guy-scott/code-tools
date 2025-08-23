@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import type { MCPManager } from './MCPManager.js';
 import { Logger } from '../core/Logger.js';
 
@@ -15,17 +14,18 @@ export class MCPTools {
       const allTools = await this.mcpManager.listAllTools();
 
       if (Object.keys(allTools).length === 0) {
-        console.log(chalk.yellow('No MCP servers configured'));
+        this.logger.warn('No MCP servers configured');
         return;
       }
 
       for (const [serverName, tools] of Object.entries(allTools)) {
+        this.logger.separator();
         if (tools.length === 0) {
-          console.log(chalk.gray(`\n${serverName}: (connection failed)`));
+          this.logger.item(`${serverName}: (connection failed)`, 'secondary');
         } else {
-          console.log(chalk.cyan(`\n${serverName}:`));
+          this.logger.item(`${serverName}:`, 'primary');
           for (const tool of tools) {
-            console.log(chalk.white(`  • ${tool}`));
+            this.logger.item(`  • ${tool}`, 'primary');
           }
         }
       }
@@ -41,7 +41,7 @@ export class MCPTools {
     const serverNames = this.mcpManager.getServerNames();
     
     if (serverNames.length === 0) {
-      console.log(chalk.yellow('No MCP servers configured'));
+      this.logger.warn('No MCP servers configured');
       return;
     }
 
@@ -60,23 +60,22 @@ export class MCPTools {
       }
     }
 
-    console.log();
+    this.logger.separator();
     for (const result of results) {
-      const status = result.connected 
-        ? chalk.green('✓ Connected') 
-        : chalk.red('✗ Failed');
+      const status = result.connected ? '✓ Connected' : '✗ Failed';
+      const level = result.connected ? 'primary' : 'secondary';
       
-      console.log(`  ${result.server}: ${status}`);
+      this.logger.item(`  ${result.server}: ${status}`, level);
       
       if (!result.connected && result.error) {
-        console.log(chalk.gray(`    ${result.error}`));
+        this.logger.item(`    ${result.error}`, 'secondary');
       }
     }
 
     const connectedCount = results.filter(r => r.connected).length;
     const totalCount = results.length;
 
-    console.log();
+    this.logger.separator();
     if (connectedCount === totalCount) {
       this.logger.success(`All ${totalCount} MCP servers connected successfully`);
     } else {
@@ -108,23 +107,23 @@ export class MCPTools {
     const status = await this.getServerStatus();
     
     if (status.length === 0) {
-      console.log(chalk.yellow('No MCP servers configured'));
+      this.logger.warn('No MCP servers configured');
       return;
     }
 
-    console.log();
+    this.logger.separator();
     for (const server of status) {
-      const configStatus = server.configured ? chalk.green('✓') : chalk.red('✗');
-      const connStatus = server.connected ? chalk.green('✓') : chalk.gray('○');
+      const configStatus = server.configured ? '✓' : '✗';
+      const connStatus = server.connected ? '✓' : '○';
       const toolCount = server.tools.length;
       
-      console.log(`  ${server.name}:`);
-      console.log(`    Config: ${configStatus} | Connected: ${connStatus} | Tools: ${toolCount}`);
+      this.logger.item(`  ${server.name}:`, 'primary');
+      this.logger.item(`    Config: ${configStatus} | Connected: ${connStatus} | Tools: ${toolCount}`, 'secondary');
       
       if (server.connected && toolCount > 0) {
         const toolList = server.tools.slice(0, 3).join(', ');
         const moreTools = toolCount > 3 ? `... (+${toolCount - 3} more)` : '';
-        console.log(chalk.gray(`    Available: ${toolList}${moreTools}`));
+        this.logger.item(`    Available: ${toolList}${moreTools}`, 'secondary');
       }
     }
   }

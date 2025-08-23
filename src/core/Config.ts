@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import type { AppConfig, MCPConfig, ProjectConfig } from '../types/index.js';
+import { CONFIG_DEFAULTS, NETWORK_DEFAULTS, DEFAULT_MODELS, DATABASE_DEFAULTS, CONNECTION_BUILDERS } from './constants.js';
 
 export class Config {
   private static instance: Config;
@@ -34,35 +35,34 @@ export class Config {
     // Build application configuration with environment variable fallbacks
     this._appConfig = {
       project,
-      maxFileSize: 10 * 1024 * 1024, // 10MB
-      chunkSize: 2000,
-      chunkOverlap: 200,
-      maxChunkSize: 4000,
-      minChunkSize: 100,
-      batchSize: 100,
-      embeddingDimensions: 768,
+      maxFileSize: CONFIG_DEFAULTS.MAX_FILE_SIZE,
+      chunkSize: CONFIG_DEFAULTS.CHUNK_SIZE,
+      chunkOverlap: CONFIG_DEFAULTS.CHUNK_OVERLAP,
+      maxChunkSize: CONFIG_DEFAULTS.MAX_CHUNK_SIZE,
+      minChunkSize: CONFIG_DEFAULTS.MIN_CHUNK_SIZE,
+      batchSize: CONFIG_DEFAULTS.BATCH_SIZE,
+      embeddingDimensions: CONFIG_DEFAULTS.EMBEDDING_DIMENSIONS,
       
       postgres: {
-        connectionString: process.env.POSTGRES_CONNECTION_STRING || 
-          'postgresql://dev_user:dev_password_123@localhost:5432/code_tools_dev'
+        connectionString: process.env.POSTGRES_CONNECTION_STRING || CONNECTION_BUILDERS.postgres()
       },
       neo4j: {
-        uri: process.env.NEO4J_URI || 'bolt://localhost:7687',
-        username: process.env.NEO4J_USERNAME || 'neo4j',
-        password: process.env.NEO4J_PASSWORD || 'dev_password_123'
+        uri: process.env.NEO4J_URI || CONNECTION_BUILDERS.neo4j(),
+        username: process.env.NEO4J_USERNAME || DATABASE_DEFAULTS.NEO4J_USER,
+        password: process.env.NEO4J_PASSWORD || DATABASE_DEFAULTS.NEO4J_PASSWORD
       },
       qdrant: {
-        url: process.env.QDRANT_URL || 'http://localhost:6333'
+        url: process.env.QDRANT_URL || CONNECTION_BUILDERS.qdrant()
       },
       redis: {
-        url: process.env.REDIS_URL || 'redis://localhost:6379'
+        url: process.env.REDIS_URL || CONNECTION_BUILDERS.redis()
       },
       ollama: {
-        host: process.env.OLLAMA_HOST || 'http://localhost:11434',
-        defaultModel: process.env.OLLAMA_DEFAULT_MODEL || 'gpt-oss:latest'
+        host: process.env.OLLAMA_HOST || NETWORK_DEFAULTS.OLLAMA_HOST,
+        defaultModel: process.env.OLLAMA_DEFAULT_MODEL || DEFAULT_MODELS.OLLAMA
       },
       gemini: {
-        defaultModel: process.env.GEMINI_DEFAULT_MODEL || 'gemini-2.0-flash'
+        defaultModel: process.env.GEMINI_DEFAULT_MODEL || DEFAULT_MODELS.GEMINI
       }
     };
 

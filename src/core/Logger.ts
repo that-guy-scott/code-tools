@@ -60,6 +60,27 @@ export class Logger {
     }
   }
 
+  // Structured output methods for UI consistency
+  public section(title: string, context?: string): void {
+    const prefix = context ? `[${context}] ` : '';
+    console.log(chalk.blue.bold(`${prefix}${title}`));
+  }
+
+  public item(message: string, level: 'primary' | 'secondary' = 'primary'): void {
+    const color = level === 'primary' ? chalk.cyan : chalk.gray;
+    console.log(color(message));
+  }
+
+  public separator(): void {
+    console.log();
+  }
+
+  public keyValue(key: string, value: string, level: 'primary' | 'secondary' = 'secondary'): void {
+    const valueColor = level === 'primary' ? chalk.cyan : chalk.gray;
+    console.log(valueColor(`${key}: ${value}`));
+  }
+
+  // Original color methods for backward compatibility
   public gray(message: string): void {
     console.log(chalk.gray(message));
   }
