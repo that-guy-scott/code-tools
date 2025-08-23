@@ -9,9 +9,15 @@ export class Config {
   private _mcpConfig: MCPConfig;
 
   private constructor() {
+    // Get the actual source directory, not the compiled directory
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
-    const toolRoot = path.resolve(__dirname, '..', '..');
+    
+    // If running from dist/, go up to project root; otherwise go up from src/
+    const isCompiledVersion = __dirname.includes('/dist/');
+    const toolRoot = isCompiledVersion 
+      ? path.resolve(__dirname, '..', '..') // from dist/core/ to root
+      : path.resolve(__dirname, '..', '..', '..'); // from src/core/ to root
 
     // Build project configuration
     const projectName = process.env.CLAUDE_PROJECT_NAME || path.basename(process.cwd());

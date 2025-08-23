@@ -28,7 +28,8 @@ async function main(): Promise<void> {
   });
   
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled rejection', reason as Error);
+    const error = reason instanceof Error ? reason : new Error(String(reason));
+    logger.error('Unhandled rejection', error);
     process.exit(1);
   });
   
@@ -41,15 +42,21 @@ async function main(): Promise<void> {
 }
 
 // Only run main if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
-    console.error('Fatal error:', error);
-    process.exit(1);
-  });
+// More robust check that works across platforms
+if (import.meta.url.startsWith('file:')) {
+  const modulePath = new URL(import.meta.url).pathname;
+  const scriptPath = process.argv[1];
+  if (scriptPath && (modulePath === scriptPath || modulePath.endsWith(scriptPath))) {
+    main().catch(error => {
+      console.error('Fatal error:', error);
+      process.exit(1);
+    });
+  }
 }
 
 export { CLIApp } from './core/CLIApp.js';
 export { Config } from './core/Config.js';
 export { Logger } from './core/Logger.js';
 export { MCPManager } from './mcp/MCPManager.js';
+export * from './core/errors.js';
 export * from './types/index.js';

@@ -1,9 +1,15 @@
 import { Logger } from '../core/Logger.js';
 import { Config } from '../core/Config.js';
+import { MCPManager } from '../mcp/MCPManager.js';
 
 export class SearchCommand {
   private logger = Logger.getInstance();
   private config = Config.getInstance();
+  private mcpManager: MCPManager;
+
+  constructor(mcpManager: MCPManager) {
+    this.mcpManager = mcpManager;
+  }
 
   public async performSemanticSearch(query: string, searchAll: boolean = false): Promise<void> {
     const searchScope = searchAll ? 'all projects' : `project: ${this.config.app.project.name}`;

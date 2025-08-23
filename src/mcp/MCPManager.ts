@@ -1,5 +1,5 @@
 import type { MCPConfig, MCPToolResult } from '../types/index.js';
-import { MCPError } from '../types/index.js';
+import { MCPError } from '../core/errors.js';
 import { MCPClient } from './MCPClient.js';
 import { Config } from '../core/Config.js';
 import { Logger } from '../core/Logger.js';

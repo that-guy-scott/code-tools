@@ -25,11 +25,11 @@ export class CLIApp {
     this.logger = Logger.getInstance();
     this.mcpManager = new MCPManager();
     
-    // Initialize commands
-    this.infoCommand = new InfoCommand();
-    this.searchCommand = new SearchCommand();
-    this.indexCommand = new IndexCommand();
-    this.promptCommand = new PromptCommand();
+    // Initialize commands with shared MCP manager
+    this.infoCommand = new InfoCommand(this.mcpManager);
+    this.searchCommand = new SearchCommand(this.mcpManager);
+    this.indexCommand = new IndexCommand(this.mcpManager);
+    this.promptCommand = new PromptCommand(this.mcpManager);
 
     this.program = new Command();
     this.setupCommands();

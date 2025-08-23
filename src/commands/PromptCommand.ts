@@ -1,8 +1,14 @@
 import type { PromptContext } from '../types/index.js';
 import { Logger } from '../core/Logger.js';
+import { MCPManager } from '../mcp/MCPManager.js';
 
 export class PromptCommand {
   private logger = Logger.getInstance();
+  private mcpManager: MCPManager;
+
+  constructor(mcpManager: MCPManager) {
+    this.mcpManager = mcpManager;
+  }
 
   public async processPrompt(context: PromptContext): Promise<void> {
     this.logger.info(`Processing prompt with provider: ${context.options.provider}`, 'Prompt');

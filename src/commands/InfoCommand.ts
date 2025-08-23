@@ -7,8 +7,13 @@ import { MCPTools } from '../mcp/MCPTools.js';
 export class InfoCommand {
   private config = Config.getInstance();
   private logger = Logger.getInstance();
-  private mcpManager = new MCPManager();
-  private mcpTools = new MCPTools(this.mcpManager);
+  private mcpManager: MCPManager;
+  private mcpTools: MCPTools;
+
+  constructor(mcpManager: MCPManager) {
+    this.mcpManager = mcpManager;
+    this.mcpTools = new MCPTools(this.mcpManager);
+  }
 
   public async showProjectInfo(): Promise<void> {
     const projectConfig = this.config.app.project;
