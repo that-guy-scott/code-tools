@@ -932,7 +932,7 @@ async function createImportExportRelationship(fromFile, toFile, importInfo, targ
 
             // Find the import entity for this file and create relationship
             const importEntityId = await findImportEntityId(fromFile, importInfo.source, mcpManager);
-            if (importEntityId) {
+            if (importEntityId && linkId) {
                 await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
                     fromMemoryId: importEntityId,
                     toMemoryId: linkId,
@@ -945,7 +945,7 @@ async function createImportExportRelationship(fromFile, toFile, importInfo, targ
 
             // Find the target symbol entity and create relationship
             const targetEntityId = await findSymbolEntityId(toFile, targetSymbol, mcpManager);
-            if (targetEntityId) {
+            if (targetEntityId && linkId) {
                 await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
                     fromMemoryId: linkId,
                     toMemoryId: targetEntityId,
@@ -2397,14 +2397,15 @@ async function createPostgreSQLRecords(sessionId, filePath, contentLength, vecto
             RETURNING id;
         `;
 
-        const fileResult = await mcpManager.callTool('postgres', 'query', {
+        const fileResult = await mcpManager.callTool('postgres', 'pg_execute_sql', {
             sql: insertQuery,
-            params: [
+            parameters: [
                 sessionId, fileName, relativePath, fileExt,
                 contentLength, stats.size, stats.mtime.toISOString(),
                 new Date().toISOString(), documentId, projectId,
                 COLLECTION_NAME, vectorData.chunks, vectorData.vectors_stored, 'indexed'
-            ]
+            ],
+            connectionString: CONFIG.postgres.connectionString
         });
 
         if (fileResult?.content?.[0]) {
@@ -2438,15 +2439,16 @@ async function createIndexingSession() {
             RETURNING id;
         `;
 
-        const sessionResult = await mcpManager.callTool('postgres', 'query', {
+        const sessionResult = await mcpManager.callTool('postgres', 'pg_execute_sql', {
             sql: sessionQuery,
-            params: [
+            parameters: [
                 PROJECT_NAME,
                 COLLECTION_NAME,
                 new Date().toISOString(),
                 'running',
                 PROJECT_ROOT
-            ]
+            ],
+            connectionString: CONFIG.postgres.connectionString
         });
 
         if (sessionResult?.content?.[0]) {
@@ -2484,15 +2486,16 @@ async function updateIndexingSession(sessionId, indexed, failed) {
             WHERE id = $5;
         `;
 
-        await mcpManager.callTool('postgres', 'query', {
+        await mcpManager.callTool('postgres', 'pg_execute_sql', {
             sql: updateQuery,
-            params: [
+            parameters: [
                 new Date().toISOString(),
                 'completed',
                 indexed,
                 failed,
                 sessionId
-            ]
+            ],
+            connectionString: CONFIG.postgres.connectionString
         });
 
         console.log(chalk.gray(`✓ Indexing session updated`));
@@ -2544,12 +2547,16 @@ async function ensurePostgreSQLTables() {
             );
         `;
 
-        await mcpManager.callTool('postgres', 'query', {
-            sql: sessionsTableQuery
+        await mcpManager.callTool('postgres', 'pg_execute_sql', {
+            sql: sessionsTableQuery,
+            expectRows: false,
+            connectionString: CONFIG.postgres.connectionString
         });
 
-        await mcpManager.callTool('postgres', 'query', {
-            sql: filesTableQuery
+        await mcpManager.callTool('postgres', 'pg_execute_sql', {
+            sql: filesTableQuery,
+            expectRows: false,
+            connectionString: CONFIG.postgres.connectionString
         });
 
         console.log(chalk.gray(`✓ PostgreSQL tables ready`));
@@ -2687,15 +2694,17 @@ async function createImportEntity(documentId, importInfo, codeStructure, mcpMana
             const importId = response.id;
 
             // Create relationship from document to import
-            await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
-                fromMemoryId: documentId,
-                toMemoryId: importId,
-                type: 'IMPORTS',
-                properties: {
-                    line: importInfo.line,
-                    import_type: importInfo.type
-                }
-            });
+            if (documentId && importId) {
+                await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
+                    fromMemoryId: documentId,
+                    toMemoryId: importId,
+                    type: 'IMPORTS',
+                    properties: {
+                        line: importInfo.line,
+                        import_type: importInfo.type
+                    }
+                });
+            }
 
             return importId;
         }
@@ -2797,15 +2806,17 @@ async function createMethodEntity(classId, methodInfo, codeStructure, mcpManager
             const methodId = response.id;
 
             // Create relationship from class to method
-            await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
-                fromMemoryId: classId,
-                toMemoryId: methodId,
-                type: 'HAS_METHOD',
-                properties: {
-                    line: methodInfo.line,
-                    kind: methodInfo.kind
-                }
-            });
+            if (classId && methodId) {
+                await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
+                    fromMemoryId: classId,
+                    toMemoryId: methodId,
+                    type: 'HAS_METHOD',
+                    properties: {
+                        line: methodInfo.line,
+                        kind: methodInfo.kind
+                    }
+                });
+            }
 
             return methodId;
         }
@@ -2841,15 +2852,17 @@ async function createFunctionEntity(documentId, funcInfo, codeStructure, mcpMana
             const functionId = response.id;
 
             // Create relationship from document to function
-            await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
-                fromMemoryId: documentId,
-                toMemoryId: functionId,
-                type: 'DEFINES',
-                properties: {
-                    line: funcInfo.line,
-                    entity_type: 'function'
-                }
-            });
+            if (documentId && functionId) {
+                await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
+                    fromMemoryId: documentId,
+                    toMemoryId: functionId,
+                    type: 'DEFINES',
+                    properties: {
+                        line: funcInfo.line,
+                        entity_type: 'function'
+                    }
+                });
+            }
 
             return functionId;
         }
@@ -3115,16 +3128,20 @@ async function createDocumentEntity(filePath, contentLength, vectorData, mcpMana
                 console.log(chalk.gray(`  ✓ Neo4j entity created: ${documentId}`));
 
                 // Link document to PROJECT (not main CLI tool)
-                await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
-                    fromMemoryId: projectId, // Link to project entity instead of main CLI
-                    toMemoryId: documentId,
-                    type: 'CONTAINS',
-                    properties: {
-                        indexed_at: new Date().toISOString(),
-                        vector_count: vectorData.vectors_stored,
-                        chunk_count: vectorData.chunks
-                    }
-                });
+                if (projectId && documentId) {
+                    await mcpManager.callTool('neo4j-agent-memory', 'create_connection', {
+                        fromMemoryId: projectId, // Link to project entity instead of main CLI
+                        toMemoryId: documentId,
+                        type: 'CONTAINS',
+                        properties: {
+                            indexed_at: new Date().toISOString(),
+                            vector_count: vectorData.vectors_stored,
+                            chunk_count: vectorData.chunks
+                        }
+                    });
+                } else {
+                    logWarning(`Skipping Neo4j connection - missing IDs: projectId=${projectId}, documentId=${documentId}`);
+                }
 
                 console.log(chalk.gray(`  ✓ Document linked to project in Neo4j`));
                 return {

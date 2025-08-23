@@ -13,6 +13,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# TypeScript
+dist/
+*.tsbuildinfo
+
 # Python
 __pycache__/
 *.py[cod]

@@ -2,23 +2,45 @@
   "name": "code-tools",
   "version": "1.0.0",
   "description": "Claude Code MCP ecosystem with streamlined semantic knowledge",
-  "main": "bin/llm-cli.js",
+  "main": "dist/index.js",
   "bin": {
-    "llm": "./bin/llm-cli.js"
+    "llm": "./dist/index.js"
   },
+  "type": "module",
   "scripts": {
-    "start": "node bin/llm-cli.js"
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "build:watch": "tsc --watch",
+    "test": "NODE_OPTIONS='--max-old-space-size=8192' vitest",
+    "test:watch": "NODE_OPTIONS='--max-old-space-size=8192' vitest --watch",
+    "test:ui": "NODE_OPTIONS='--max-old-space-size=8192' vitest --ui",
+    "test:coverage": "NODE_OPTIONS='--max-old-space-size=8192' vitest --coverage"
   },
   "dependencies": {
-    "commander": "^11.1.0",
-    "chalk": "^4.1.2"
+    "@babel/parser": "^7.28.3",
+    "@babel/traverse": "^7.28.3",
+    "@modelcontextprotocol/sdk": "^1.17.4",
+    "acorn": "^8.15.0",
+    "axios": "^1.11.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0"
   },
   "keywords": [
     "claude",
-    "mcp", 
+    "mcp",
     "semantic",
     "knowledge"
   ],
   "author": "Scott Angel",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "memfs": "^4.37.1",
+    "nock": "^14.0.10",
+    "sinon": "^21.0.0",
+    "typescript": "^5.7.2",
+    "tsx": "^4.19.2",
+    "vitest": "^3.2.4"
+  }
 }
