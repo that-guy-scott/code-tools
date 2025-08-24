@@ -1,1 +1,1 @@
-../tools/bin/qdrant.rs
+../tools/target/release/qdrant
