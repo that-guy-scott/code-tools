@@ -188,16 +188,31 @@ async fn handle_search_command(
     query: String,
     limit: i64,
     label: Option<String>,
-    _depth: i64,
+    depth: i64,
     options: &CommonOptions,
 ) -> Result<(), anyhow::Error> {
-    let mut cypher = String::from(
-        "MATCH (m) 
-         WHERE (m.name IS NOT NULL AND toLower(toString(m.name)) CONTAINS toLower($query))
-            OR (m.content IS NOT NULL AND toLower(toString(m.content)) CONTAINS toLower($query))
-            OR (m.description IS NOT NULL AND toLower(toString(m.description)) CONTAINS toLower($query))
-            OR (m.purpose IS NOT NULL AND toLower(toString(m.purpose)) CONTAINS toLower($query))"
-    );
+    let mut cypher = if depth > 0 {
+        // Search with relationship traversal at specified depth
+        format!(
+            "MATCH (m)-[*0..{}]-(related) 
+             WHERE (m.name IS NOT NULL AND toLower(toString(m.name)) CONTAINS toLower($query))
+                OR (m.content IS NOT NULL AND toLower(toString(m.content)) CONTAINS toLower($query))
+                OR (m.description IS NOT NULL AND toLower(toString(m.description)) CONTAINS toLower($query))
+                OR (m.purpose IS NOT NULL AND toLower(toString(m.purpose)) CONTAINS toLower($query))
+                OR (related.name IS NOT NULL AND toLower(toString(related.name)) CONTAINS toLower($query))
+                OR (related.content IS NOT NULL AND toLower(toString(related.content)) CONTAINS toLower($query))",
+            depth
+        )
+    } else {
+        // Simple search without relationship traversal (depth 0)
+        String::from(
+            "MATCH (m) 
+             WHERE (m.name IS NOT NULL AND toLower(toString(m.name)) CONTAINS toLower($query))
+                OR (m.content IS NOT NULL AND toLower(toString(m.content)) CONTAINS toLower($query))
+                OR (m.description IS NOT NULL AND toLower(toString(m.description)) CONTAINS toLower($query))
+                OR (m.purpose IS NOT NULL AND toLower(toString(m.purpose)) CONTAINS toLower($query))"
+        )
+    };
     
     let mut params = vec![("query", query.as_str())];
     
@@ -206,9 +221,20 @@ async fn handle_search_command(
         params.push(("label", label_filter.as_str()));
     }
     
-    cypher.push_str(" RETURN m, id(m) as nodeId, labels(m) as labels ORDER BY m.created_at DESC LIMIT $limit");
-    let limit_str = limit.to_string();
-    params.push(("limit", &limit_str));
+    if depth > 0 {
+        // Return both the main node and related nodes with relationships
+        cypher.push_str(" 
+            WITH DISTINCT m, collect(DISTINCT {node: related, relationship: last([(m)-[r*0..1]-(related) | r])}) as related_nodes
+            RETURN m, id(m) as nodeId, labels(m) as labels, related_nodes
+            ORDER BY m.created_at DESC LIMIT $limit");
+    } else {
+        // Simple return for depth 0
+        cypher.push_str(" RETURN m, id(m) as nodeId, labels(m) as labels ORDER BY m.created_at DESC LIMIT $limit");
+    }
+    
+    // Neo4j expects integers to be passed as actual integers, not strings
+    // Using a workaround by embedding the limit directly in the query
+    cypher = cypher.replace("LIMIT $limit", &format!("LIMIT {}", limit));
     
     let mut result = graph.execute(Query::new(cypher).params(params)).await?;
     
@@ -219,8 +245,15 @@ async fn handle_search_command(
         memories.push(record);
     }
     
-    let result_json = Value::Array(memories);
-    println!("{}", format_output(&result_json, options.format));
+    let search_result = json!({
+        "query": query,
+        "depth": depth,
+        "limit": limit,
+        "results": memories,
+        "count": memories.len()
+    });
+    
+    println!("{}", format_output(&search_result, options.format));
     
     Ok(())
 }
@@ -231,6 +264,11 @@ async fn handle_create_command(
     properties_str: String,
     options: &CommonOptions,
 ) -> Result<(), anyhow::Error> {
+    // Validate label - must be a valid Neo4j identifier
+    if label.trim().is_empty() || !label.chars().all(|c| c.is_alphanumeric() || c == '_') {
+        return Err(anyhow::anyhow!("Invalid label '{}'. Labels must contain only alphanumeric characters and underscores", label));
+    }
+    
     let mut properties: Value = parse_json_arg(&properties_str, "properties")?;
     
     // Add timestamp if not provided
@@ -238,15 +276,25 @@ async fn handle_create_command(
         if !obj.contains_key("created_at") {
             obj.insert("created_at".to_string(), Value::String(chrono::Utc::now().to_rfc3339()));
         }
+    } else if properties_str.trim().is_empty() || properties == Value::Object(serde_json::Map::new()) {
+        // If no properties provided, create a default object with timestamp
+        let mut default_props = serde_json::Map::new();
+        default_props.insert("created_at".to_string(), Value::String(chrono::Utc::now().to_rfc3339()));
+        properties = Value::Object(default_props);
     }
     
     // For v0.7 compatibility, create node with basic properties as strings
     let mut cypher = format!("CREATE (m:{}{{", label);
-    let mut params = Vec::new();
+    let mut params: Vec<(String, String)> = Vec::new();
     let mut first = true;
     
     if let Value::Object(obj) = &properties {
         for (key, value) in obj {
+            // Validate property key names
+            if key.trim().is_empty() || !key.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                return Err(anyhow::anyhow!("Invalid property key '{}'. Property keys must contain only alphanumeric characters and underscores", key));
+            }
+            
             if !first { cypher.push_str(", "); }
             first = false;
             
@@ -255,6 +303,7 @@ async fn handle_create_command(
                 Value::String(s) => s.clone(),
                 Value::Number(n) => n.to_string(),
                 Value::Bool(b) => b.to_string(),
+                Value::Null => "null".to_string(),
                 _ => value.to_string(), // JSON representation for complex types
             };
             params.push((key.clone(), value_str));
@@ -272,6 +321,8 @@ async fn handle_create_command(
     if let Ok(Some(row)) = result.next().await {
         let response: Value = row.to()?;
         println!("{}", format_output(&response, options.format));
+    } else {
+        return Err(anyhow::anyhow!("Failed to create node"));
     }
     
     Ok(())
@@ -287,6 +338,21 @@ async fn handle_connect_command(
 ) -> Result<(), anyhow::Error> {
     let mut properties: Value = parse_json_arg(&properties_str, "relationship properties")?;
     
+    // First, validate that both nodes exist
+    let check_cypher = "MATCH (from), (to) WHERE id(from) = $fromId AND id(to) = $toId RETURN id(from) as fromId, id(to) as toId";
+    let from_id_str = from_id.to_string();
+    let to_id_str = to_id.to_string();
+    let check_params = vec![
+        ("fromId", from_id_str.as_str()),
+        ("toId", to_id_str.as_str()),
+    ];
+    
+    let mut check_result = graph.execute(Query::new(check_cypher.to_string()).params(check_params)).await?;
+    
+    if check_result.next().await?.is_none() {
+        return Err(anyhow::anyhow!("One or both nodes not found (from: {}, to: {})", from_id, to_id));
+    }
+    
     // Add timestamp if not provided
     if let Value::Object(ref mut obj) = properties {
         if !obj.contains_key("created_at") {
@@ -294,25 +360,50 @@ async fn handle_connect_command(
         }
     }
     
-    let cypher = format!(
+    let mut cypher = format!(
         "MATCH (from), (to) WHERE id(from) = $fromId AND id(to) = $toId 
-         CREATE (from)-[r:{}]->(to) 
-         RETURN r, type(r) as relType, id(from) as fromId, id(to) as toId",
+         CREATE (from)-[r:{}{{", 
         rel_type
     );
     
-    let from_id_str = from_id.to_string();
-    let to_id_str = to_id.to_string();
-    let params = vec![
-        ("fromId", from_id_str.as_str()),
-        ("toId", to_id_str.as_str()),
+    let mut params: Vec<(String, String)> = vec![
+        ("fromId".to_string(), from_id_str),
+        ("toId".to_string(), to_id_str),
     ];
     
-    let mut result = graph.execute(Query::new(cypher).params(params)).await?;
+    // Add relationship properties
+    if let Value::Object(props) = &properties {
+        if !props.is_empty() {
+            let mut prop_strings = Vec::new();
+            for (key, value) in props {
+                prop_strings.push(format!("{}: ${}", key, key));
+                let value_str = match value {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    Value::Null => "null".to_string(),
+                    _ => value.to_string(),
+                };
+                params.push((key.clone(), value_str));
+            }
+            cypher.push_str(&prop_strings.join(", "));
+        }
+    }
+    
+    cypher.push_str("}]->(to) RETURN r, type(r) as relType, id(from) as fromId, id(to) as toId");
+    
+    // Convert to references for the API
+    let param_refs: Vec<(&str, &str)> = params.iter()
+        .map(|(k, v)| (k.as_str(), v.as_str()))
+        .collect();
+    
+    let mut result = graph.execute(Query::new(cypher).params(param_refs)).await?;
     
     if let Ok(Some(row)) = result.next().await {
         let response: Value = row.to()?;
         println!("{}", format_output(&response, options.format));
+    } else {
+        return Err(anyhow::anyhow!("Failed to create relationship"));
     }
     
     Ok(())
@@ -324,17 +415,64 @@ async fn handle_update_command(
     properties_str: String,
     options: &CommonOptions,
 ) -> Result<(), anyhow::Error> {
-    let _properties: Value = parse_json_arg(&properties_str, "properties")?;
+    let properties: Value = parse_json_arg(&properties_str, "properties")?;
     
-    let cypher = "MATCH (m) WHERE id(m) = $id RETURN m, id(m) as nodeId, labels(m) as labels";
+    // First, check if the node exists
+    let check_cypher = "MATCH (m) WHERE id(m) = $id RETURN id(m) as nodeId";
     let id_str = id.to_string();
-    let params = vec![("id", id_str.as_str())];
+    let check_params = vec![("id", id_str.as_str())];
     
-    let mut result = graph.execute(Query::new(cypher.to_string()).params(params)).await?;
+    let mut check_result = graph.execute(Query::new(check_cypher.to_string()).params(check_params)).await?;
     
-    if let Ok(Some(row)) = result.next().await {
-        let response: Value = row.to()?;
-        println!("{}", format_output(&response, options.format));
+    if check_result.next().await?.is_none() {
+        return Err(anyhow::anyhow!("Node with ID {} not found", id));
+    }
+    
+    if let Value::Object(props) = &properties {
+        if props.is_empty() {
+            return Err(anyhow::anyhow!("No properties provided for update"));
+        }
+        
+        // Build SET clause
+        let mut set_clauses = Vec::new();
+        let mut params: Vec<(String, String)> = Vec::new();
+        params.push(("id".to_string(), id_str));
+        
+        for (key, value) in props {
+            set_clauses.push(format!("m.{} = ${}", key, key));
+            let value_str = match value {
+                Value::String(s) => s.clone(),
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                Value::Null => "null".to_string(),
+                _ => value.to_string(), // JSON representation for complex types
+            };
+            params.push((key.clone(), value_str));
+        }
+        
+        // Add updated timestamp
+        set_clauses.push("m.updated_at = $updated_at".to_string());
+        let updated_at = chrono::Utc::now().to_rfc3339();
+        params.push(("updated_at".to_string(), updated_at));
+        
+        let cypher = format!(
+            "MATCH (m) WHERE id(m) = $id SET {} RETURN m, id(m) as nodeId, labels(m) as labels",
+            set_clauses.join(", ")
+        );
+        
+        // Convert to references for the API
+        let param_refs: Vec<(&str, &str)> = params.iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+        
+        let mut result = graph.execute(Query::new(cypher).params(param_refs)).await?;
+        
+        if let Ok(Some(row)) = result.next().await {
+            let response: Value = row.to()?;
+            println!("{}", format_output(&response, options.format));
+        }
+    } else {
+        return Err(anyhow::anyhow!("Properties must be a JSON object"));
     }
     
     Ok(())
@@ -345,16 +483,44 @@ async fn handle_delete_command(
     id: i64,
     options: &CommonOptions,
 ) -> Result<(), anyhow::Error> {
-    let cypher = "MATCH (m) WHERE id(m) = $id DETACH DELETE m RETURN count(m) as deleted";
+    // First, check if the node exists and get its info
+    let check_cypher = "MATCH (m) WHERE id(m) = $id RETURN m, id(m) as nodeId, labels(m) as labels";
     let id_str = id.to_string();
-    let params = vec![("id", id_str.as_str())];
+    let check_params = vec![("id", id_str.as_str())];
     
-    let mut result = graph.execute(Query::new(cypher.to_string()).params(params)).await?;
+    let mut check_result = graph.execute(Query::new(check_cypher.to_string()).params(check_params)).await?;
     
-    if let Ok(Some(row)) = result.next().await {
-        let response: Value = row.to()?;
-        println!("{}", format_output(&response, options.format));
-    }
+    let node_info = if let Ok(Some(row)) = check_result.next().await {
+        row.to::<Value>()?
+    } else {
+        return Err(anyhow::anyhow!("Node with ID {} not found", id));
+    };
+    
+    // Count relationships before deletion for reporting
+    let rel_count_cypher = "MATCH (m) WHERE id(m) = $id OPTIONAL MATCH (m)-[r]-() RETURN count(r) as relationship_count";
+    let mut rel_count_result = graph.execute(Query::new(rel_count_cypher.to_string()).params(vec![("id", id_str.as_str())])).await?;
+    
+    let relationship_count = if let Ok(Some(row)) = rel_count_result.next().await {
+        let rel_data: Value = row.to()?;
+        rel_data.get("relationship_count").and_then(|v| v.as_i64()).unwrap_or(0)
+    } else {
+        0
+    };
+    
+    // Perform the actual deletion
+    let delete_cypher = "MATCH (m) WHERE id(m) = $id DETACH DELETE m";
+    let delete_params = vec![("id", id_str.as_str())];
+    
+    let _ = graph.execute(Query::new(delete_cypher.to_string()).params(delete_params)).await?;
+    
+    let delete_result = json!({
+        "deleted": true,
+        "node_id": id,
+        "node_info": node_info,
+        "relationships_deleted": relationship_count
+    });
+    
+    println!("{}", format_output(&delete_result, options.format));
     
     Ok(())
 }
@@ -368,22 +534,33 @@ async fn handle_query_command(
 ) -> Result<(), anyhow::Error> {
     let params_json: Value = parse_json_arg(&params_str, "parameters")?;
     
-    // For v0.7 compatibility, only support string parameters for now
-    let params: Vec<(&str, &str)> = if let Value::Object(obj) = &params_json {
+    // Support all JSON parameter types by converting to strings
+    let params: Vec<(&str, String)> = if let Value::Object(obj) = &params_json {
         obj.iter()
-            .filter_map(|(k, v)| {
-                if let Value::String(s) = v {
-                    Some((k.as_str(), s.as_str()))
-                } else {
-                    None
-                }
+            .map(|(k, v)| {
+                let value_str = match v {
+                    Value::String(s) => s.clone(),
+                    Value::Number(n) => n.to_string(),
+                    Value::Bool(b) => b.to_string(),
+                    Value::Null => "null".to_string(),
+                    Value::Array(_) | Value::Object(_) => {
+                        // For complex types, serialize to JSON string
+                        serde_json::to_string(v).unwrap_or_else(|_| "null".to_string())
+                    }
+                };
+                (k.as_str(), value_str)
             })
             .collect()
     } else {
         vec![]
     };
     
-    let mut result = graph.execute(Query::new(cypher).params(params)).await?;
+    // Convert to string references for the neo4rs API
+    let param_refs: Vec<(&str, &str)> = params.iter()
+        .map(|(k, v)| (*k, v.as_str()))
+        .collect();
+    
+    let mut result = graph.execute(Query::new(cypher).params(param_refs)).await?;
     
     let mut records = Vec::new();
     while let Ok(Some(row)) = result.next().await {
@@ -424,7 +601,7 @@ async fn handle_stats_command(
     let queries = vec![
         ("total_nodes", "MATCH (n) RETURN count(n) as count"),
         ("total_relationships", "MATCH ()-[r]->() RETURN count(r) as count"),
-        ("node_labels", "MATCH (n) RETURN labels(n) as labels, count(n) as count GROUP BY labels(n) ORDER BY count DESC LIMIT 10"),
+        ("node_labels", "MATCH (n) WITH labels(n) as labels, count(n) as count RETURN labels, count ORDER BY count DESC LIMIT 10"),
     ];
     
     let mut stats = serde_json::Map::new();

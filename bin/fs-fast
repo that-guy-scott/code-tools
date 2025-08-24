@@ -1,1 +1,1 @@
-../tools/bin/fs-fast.rs
+../tools/target/release/fs-fast

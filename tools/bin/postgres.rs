@@ -301,58 +301,129 @@ fn row_to_json(row: &Row) -> Result<Value, anyhow::Error> {
 fn postgres_value_to_json(row: &Row, idx: usize, col_type: &tokio_postgres::types::Type) -> Result<Value, anyhow::Error> {
     use tokio_postgres::types::Type;
     
-    if row.try_get::<_, Option<String>>(idx)?.is_none() {
-        return Ok(Value::Null);
-    }
+    // Check if the value is NULL by attempting to get it as the expected type first
+    // We'll handle NULL checking within each type case
     
     match *col_type {
-        Type::BOOL => Ok(Value::Bool(row.get(idx))),
-        Type::INT2 => Ok(Value::Number(serde_json::Number::from(row.get::<_, i16>(idx)))),
-        Type::INT4 => Ok(Value::Number(serde_json::Number::from(row.get::<_, i32>(idx)))),
-        Type::INT8 => Ok(Value::Number(serde_json::Number::from(row.get::<_, i64>(idx)))),
+        Type::BOOL => {
+            match row.try_get::<_, Option<bool>>(idx)? {
+                Some(val) => Ok(Value::Bool(val)),
+                None => Ok(Value::Null),
+            }
+        },
+        Type::INT2 => {
+            match row.try_get::<_, Option<i16>>(idx)? {
+                Some(val) => Ok(Value::Number(serde_json::Number::from(val))),
+                None => Ok(Value::Null),
+            }
+        },
+        Type::INT4 => {
+            match row.try_get::<_, Option<i32>>(idx)? {
+                Some(val) => Ok(Value::Number(serde_json::Number::from(val))),
+                None => Ok(Value::Null),
+            }
+        },
+        Type::INT8 => {
+            match row.try_get::<_, Option<i64>>(idx)? {
+                Some(val) => Ok(Value::Number(serde_json::Number::from(val))),
+                None => Ok(Value::Null),
+            }
+        },
         Type::FLOAT4 => {
-            let val: f32 = row.get(idx);
-            Ok(serde_json::Number::from_f64(val as f64)
-                .map(Value::Number)
-                .unwrap_or(Value::Null))
+            match row.try_get::<_, Option<f32>>(idx)? {
+                Some(val) => Ok(serde_json::Number::from_f64(val as f64)
+                    .map(Value::Number)
+                    .unwrap_or(Value::Null)),
+                None => Ok(Value::Null),
+            }
         },
         Type::FLOAT8 => {
-            let val: f64 = row.get(idx);
-            Ok(serde_json::Number::from_f64(val)
-                .map(Value::Number)
-                .unwrap_or(Value::Null))
+            match row.try_get::<_, Option<f64>>(idx)? {
+                Some(val) => Ok(serde_json::Number::from_f64(val)
+                    .map(Value::Number)
+                    .unwrap_or(Value::Null)),
+                None => Ok(Value::Null),
+            }
         },
         Type::TEXT | Type::VARCHAR | Type::CHAR | Type::NAME => {
-            Ok(Value::String(row.get(idx)))
+            match row.try_get::<_, Option<String>>(idx)? {
+                Some(val) => Ok(Value::String(val)),
+                None => Ok(Value::Null),
+            }
         },
         Type::JSON | Type::JSONB => {
-            let json_val: serde_json::Value = row.get(idx);
-            Ok(json_val)
+            match row.try_get::<_, Option<serde_json::Value>>(idx)? {
+                Some(json_val) => Ok(json_val),
+                None => Ok(Value::Null),
+            }
         },
         Type::UUID => {
-            let uuid: uuid::Uuid = row.get(idx);
-            Ok(Value::String(uuid.to_string()))
+            match row.try_get::<_, Option<uuid::Uuid>>(idx)? {
+                Some(uuid) => Ok(Value::String(uuid.to_string())),
+                None => Ok(Value::Null),
+            }
         },
         Type::TIMESTAMP => {
-            let ts: chrono::NaiveDateTime = row.get(idx);
-            Ok(Value::String(ts.to_string()))
+            match row.try_get::<_, Option<chrono::NaiveDateTime>>(idx)? {
+                Some(ts) => Ok(Value::String(ts.to_string())),
+                None => Ok(Value::Null),
+            }
         },
         Type::TIMESTAMPTZ => {
-            let ts: chrono::DateTime<chrono::Utc> = row.get(idx);
-            Ok(Value::String(ts.to_rfc3339()))
+            match row.try_get::<_, Option<chrono::DateTime<chrono::Utc>>>(idx)? {
+                Some(ts) => Ok(Value::String(ts.to_rfc3339())),
+                None => Ok(Value::Null),
+            }
         },
         Type::DATE => {
-            let date: chrono::NaiveDate = row.get(idx);
-            Ok(Value::String(date.to_string()))
+            match row.try_get::<_, Option<chrono::NaiveDate>>(idx)? {
+                Some(date) => Ok(Value::String(date.to_string())),
+                None => Ok(Value::Null),
+            }
         },
         Type::TIME => {
-            let time: chrono::NaiveTime = row.get(idx);
-            Ok(Value::String(time.to_string()))
+            match row.try_get::<_, Option<chrono::NaiveTime>>(idx)? {
+                Some(time) => Ok(Value::String(time.to_string())),
+                None => Ok(Value::Null),
+            }
+        },
+        Type::NUMERIC => {
+            // Handle NUMERIC types carefully
+            match row.try_get::<_, Option<String>>(idx) {
+                Ok(Some(val)) => {
+                    // Try to parse as f64 for JSON number, fallback to string
+                    if let Ok(num_val) = val.parse::<f64>() {
+                        Ok(serde_json::Number::from_f64(num_val)
+                            .map(Value::Number)
+                            .unwrap_or(Value::String(val)))
+                    } else {
+                        Ok(Value::String(val))
+                    }
+                },
+                Ok(None) => Ok(Value::Null),
+                Err(_) => {
+                    // Fallback - just convert the column to a string representation
+                    Ok(Value::String("numeric_conversion_error".to_string()))
+                }
+            }
         },
         _ => {
-            // Fallback to string representation
-            let val: String = row.get(idx);
-            Ok(Value::String(val))
+            // Fallback to string representation, handle NULL values
+            match row.try_get::<_, Option<String>>(idx) {
+                Ok(Some(val)) => Ok(Value::String(val)),
+                Ok(None) => Ok(Value::Null),
+                Err(_) => {
+                    // If string conversion fails, try getting as raw bytes and convert
+                    match row.try_get::<_, Option<i64>>(idx) {
+                        Ok(Some(val)) => Ok(Value::Number(serde_json::Number::from(val))),
+                        Ok(None) => Ok(Value::Null),
+                        Err(_) => {
+                            // Final fallback - just use a placeholder
+                            Ok(Value::String(format!("unsupported_type_{}", col_type.name())))
+                        }
+                    }
+                }
+            }
         },
     }
 }
@@ -483,6 +554,70 @@ async fn handle_mutate_insert(
     Ok(())
 }
 
+async fn handle_mutate_update(
+    pool: &Pool,
+    table: String,
+    data_str: String,
+    where_clause: String,
+    returning: Option<String>,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let data_json: Value = parse_json_arg(&data_str, "data")?;
+    
+    // Parse JSON object to SET clause
+    if let Value::Object(obj) = data_json {
+        if obj.is_empty() {
+            return Err(anyhow::anyhow!("No data to update"));
+        }
+        
+        let mut set_clauses = Vec::new();
+        
+        for (key, value) in obj {
+            // Convert JSON value to SQL literal (simplified approach)
+            let sql_value = match value {
+                Value::String(s) => format!("'{}'", s.replace("'", "''")), // Basic SQL injection protection
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                Value::Null => "NULL".to_string(),
+                _ => return Err(anyhow::anyhow!("Unsupported parameter type for column {}", key)),
+            };
+            
+            set_clauses.push(format!("{} = {}", key, sql_value));
+        }
+        
+        let mut update_query = format!(
+            "UPDATE {} SET {} WHERE {}",
+            table,
+            set_clauses.join(", "),
+            where_clause
+        );
+        
+        if let Some(ref ret) = returning {
+            update_query.push_str(&format!(" RETURNING {}", ret));
+        }
+        
+        let client = pool.get().await?;
+        
+        if returning.is_some() {
+            let rows = client.query(&update_query, &[]).await?;
+            let mut results = Vec::new();
+            for row in rows {
+                results.push(row_to_json(&row)?);
+            }
+            let result_json = Value::Array(results);
+            println!("{}", format_output(&result_json, options.format));
+        } else {
+            let affected = client.execute(&update_query, &[]).await?;
+            let result = json!({"updated": true, "rows_affected": affected});
+            println!("{}", format_output(&result, options.format));
+        }
+    } else {
+        return Err(anyhow::anyhow!("Data must be a JSON object"));
+    }
+    
+    Ok(())
+}
+
 async fn handle_execute_command(
     pool: &Pool,
     sql: String,
@@ -577,6 +712,459 @@ async fn handle_schema_tables(
     Ok(())
 }
 
+async fn handle_monitor_stats(
+    pool: &Pool,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let client = pool.get().await?;
+    
+    // Database size and basic stats
+    let db_stats_query = "
+        SELECT 
+            current_database() as database_name,
+            pg_size_pretty(pg_database_size(current_database())) as database_size,
+            pg_database_size(current_database()) as database_size_bytes,
+            (SELECT count(*)::bigint FROM pg_stat_user_tables) as user_tables_count,
+            (SELECT count(*)::bigint FROM pg_stat_user_indexes) as user_indexes_count
+    ";
+    
+    // Cache hit ratios and transaction stats
+    let cache_stats_query = "
+        SELECT 
+            COALESCE(sum(blks_hit), 0)::bigint as cache_hits,
+            COALESCE(sum(blks_read), 0)::bigint as disk_reads,
+            round(COALESCE(sum(blks_hit), 0) * 100.0 / GREATEST(COALESCE(sum(blks_hit), 0) + COALESCE(sum(blks_read), 0), 1), 2)::float8 as cache_hit_ratio,
+            COALESCE(sum(xact_commit), 0)::bigint as transactions_committed,
+            COALESCE(sum(xact_rollback), 0)::bigint as transactions_rolled_back,
+            COALESCE(sum(tup_returned), 0)::bigint as tuples_returned,
+            COALESCE(sum(tup_fetched), 0)::bigint as tuples_fetched,
+            COALESCE(sum(tup_inserted), 0)::bigint as tuples_inserted,
+            COALESCE(sum(tup_updated), 0)::bigint as tuples_updated,
+            COALESCE(sum(tup_deleted), 0)::bigint as tuples_deleted
+        FROM pg_stat_database 
+        WHERE datname = current_database()
+    ";
+    
+    // Connection stats
+    let connection_stats_query = "
+        SELECT 
+            count(*)::bigint as total_connections,
+            count(*) filter (where state = 'active')::bigint as active_connections,
+            count(*) filter (where state = 'idle')::bigint as idle_connections,
+            count(*) filter (where state = 'idle in transaction')::bigint as idle_in_transaction,
+            count(*) filter (where wait_event_type IS NOT NULL)::bigint as waiting_connections,
+            COALESCE(max(extract(epoch from (now() - query_start))), 0)::float8 as longest_query_seconds
+        FROM pg_stat_activity 
+        WHERE pid != pg_backend_pid()
+    ";
+    
+    let db_stats_rows = client.query(db_stats_query, &[]).await?;
+    let cache_stats_rows = client.query(cache_stats_query, &[]).await?;
+    let connection_stats_rows = client.query(connection_stats_query, &[]).await?;
+    
+    let mut stats = json!({});
+    
+    if let Some(row) = db_stats_rows.first() {
+        let db_info = row_to_json(row)?;
+        stats["database_info"] = db_info;
+    }
+    
+    if let Some(row) = cache_stats_rows.first() {
+        let cache_info = row_to_json(row)?;
+        stats["cache_performance"] = cache_info;
+    }
+    
+    if let Some(row) = connection_stats_rows.first() {
+        let conn_info = row_to_json(row)?;
+        stats["connections"] = conn_info;
+    }
+    
+    println!("{}", format_output(&stats, options.format));
+    Ok(())
+}
+
+async fn handle_monitor_connections(
+    pool: &Pool,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let client = pool.get().await?;
+    
+    let connections_query = "
+        SELECT 
+            pid,
+            usename as username,
+            application_name,
+            client_addr as client_address,
+            client_port,
+            backend_start,
+            query_start,
+            state_change,
+            state,
+            wait_event_type,
+            wait_event,
+            extract(epoch from (now() - backend_start))::int as connection_duration_seconds,
+            extract(epoch from (now() - query_start))::int as query_duration_seconds,
+            left(query, 100) as current_query_preview
+        FROM pg_stat_activity 
+        WHERE pid != pg_backend_pid()
+        AND state IS NOT NULL
+        ORDER BY backend_start DESC
+    ";
+    
+    let rows = client.query(connections_query, &[]).await?;
+    
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row_to_json(&row)?);
+    }
+    
+    let connection_summary = json!({
+        "total_connections": results.len(),
+        "connections": results
+    });
+    
+    println!("{}", format_output(&connection_summary, options.format));
+    Ok(())
+}
+
+async fn handle_monitor_slow_queries(
+    pool: &Pool,
+    min_duration: f64,
+    limit: i64,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let client = pool.get().await?;
+    
+    // Try pg_stat_statements first, fall back to pg_stat_activity for long-running queries
+    let pg_stat_statements_query = format!("
+        SELECT 
+            query,
+            calls,
+            total_exec_time,
+            mean_exec_time,
+            min_exec_time,
+            max_exec_time,
+            rows as total_rows,
+            100.0 * shared_blks_hit / nullif(shared_blks_hit + shared_blks_read, 0) as hit_percent
+        FROM pg_stat_statements 
+        WHERE mean_exec_time > {}
+        ORDER BY mean_exec_time DESC 
+        LIMIT {}
+    ", min_duration, limit);
+    
+    let fallback_query = format!("
+        SELECT 
+            pid,
+            usename as username,
+            application_name,
+            client_addr as client_address,
+            state,
+            query_start,
+            extract(epoch from (now() - query_start))::int as duration_seconds,
+            query
+        FROM pg_stat_activity 
+        WHERE pid != pg_backend_pid()
+        AND state = 'active'
+        AND query_start IS NOT NULL
+        AND extract(epoch from (now() - query_start)) > {}
+        ORDER BY query_start ASC
+        LIMIT {}
+    ", min_duration / 1000.0, limit);
+    
+    // Try pg_stat_statements first
+    let result = client.query(&pg_stat_statements_query, &[]).await;
+    
+    let (rows, data_source) = match result {
+        Ok(rows) if !rows.is_empty() => (rows, "pg_stat_statements"),
+        _ => {
+            // Fallback to pg_stat_activity for currently running queries
+            let fallback_rows = client.query(&fallback_query, &[]).await?;
+            (fallback_rows, "pg_stat_activity")
+        }
+    };
+    
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row_to_json(&row)?);
+    }
+    
+    let slow_queries_summary = json!({
+        "data_source": data_source,
+        "min_duration_ms": min_duration,
+        "query_count": results.len(),
+        "queries": results
+    });
+    
+    println!("{}", format_output(&slow_queries_summary, options.format));
+    Ok(())
+}
+
+async fn handle_schema_create_table(
+    pool: &Pool,
+    table: String,
+    columns_str: String,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let columns_json: Value = parse_json_arg(&columns_str, "columns")?;
+    
+    if let Value::Array(columns_array) = columns_json {
+        if columns_array.is_empty() {
+            return Err(anyhow::anyhow!("No columns defined"));
+        }
+        
+        let mut column_defs = Vec::new();
+        let mut constraints = Vec::new();
+        
+        for (i, col) in columns_array.iter().enumerate() {
+            if let Value::Object(col_obj) = col {
+                let name = col_obj.get("name")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Column {} missing 'name' field", i))?;
+                
+                let data_type = col_obj.get("type")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Column '{}' missing 'type' field", name))?;
+                
+                let mut def = format!("{} {}", name, data_type);
+                
+                // Handle nullable
+                if let Some(nullable) = col_obj.get("nullable").and_then(|v| v.as_bool()) {
+                    if !nullable {
+                        def.push_str(" NOT NULL");
+                    }
+                }
+                
+                // Handle default value
+                if let Some(default) = col_obj.get("default").and_then(|v| v.as_str()) {
+                    def.push_str(&format!(" DEFAULT {}", default));
+                }
+                
+                // Handle primary key constraint
+                if col_obj.get("primary_key").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    constraints.push(format!("PRIMARY KEY ({})", name));
+                }
+                
+                // Handle unique constraint
+                if col_obj.get("unique").and_then(|v| v.as_bool()).unwrap_or(false) {
+                    constraints.push(format!("UNIQUE ({})", name));
+                }
+                
+                column_defs.push(def);
+            } else {
+                return Err(anyhow::anyhow!("Column {} must be a JSON object", i));
+            }
+        }
+        
+        let mut create_query = format!(
+            "CREATE TABLE {} ({}",
+            table,
+            column_defs.join(", ")
+        );
+        
+        if !constraints.is_empty() {
+            create_query.push_str(", ");
+            create_query.push_str(&constraints.join(", "));
+        }
+        
+        create_query.push(')');
+        
+        let client = pool.get().await?;
+        client.execute(&create_query, &[]).await?;
+        
+        let result = json!({
+            "created": true,
+            "table": table,
+            "columns": column_defs.len(),
+            "constraints": constraints.len()
+        });
+        println!("{}", format_output(&result, options.format));
+        
+    } else {
+        return Err(anyhow::anyhow!("Columns must be a JSON array of column definitions"));
+    }
+    
+    Ok(())
+}
+
+async fn handle_schema_indexes(
+    pool: &Pool,
+    table: Option<String>,
+    stats: bool,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let base_query = if stats {
+        // Include usage statistics
+        "SELECT 
+            i.schemaname,
+            i.tablename,
+            i.indexname,
+            i.indexdef,
+            pg_size_pretty(pg_relation_size(c.oid)) as size,
+            COALESCE(s.idx_scan, 0) as scans,
+            COALESCE(s.idx_tup_read, 0) as tuples_read,
+            COALESCE(s.idx_tup_fetch, 0) as tuples_fetched
+        FROM pg_indexes i
+        LEFT JOIN pg_class c ON c.relname = i.indexname
+        LEFT JOIN pg_stat_user_indexes s ON (i.schemaname = s.schemaname AND i.tablename = s.tablename AND i.indexname = s.indexname)"
+    } else {
+        "SELECT schemaname, tablename, indexname, indexdef FROM pg_indexes"
+    };
+    
+    let query = if let Some(table_name) = table {
+        format!("{} WHERE tablename = '{}' AND schemaname NOT IN ('information_schema', 'pg_catalog')", base_query, table_name)
+    } else {
+        format!("{} WHERE schemaname NOT IN ('information_schema', 'pg_catalog')", base_query)
+    };
+    
+    let client = pool.get().await?;
+    let rows = client.query(&query, &[]).await?;
+    
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row_to_json(&row)?);
+    }
+    
+    let result_json = Value::Array(results);
+    println!("{}", format_output(&result_json, options.format));
+    Ok(())
+}
+
+async fn handle_users_list(
+    pool: &Pool,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let query = "
+        SELECT 
+            rolname as username,
+            rolsuper as is_superuser,
+            rolcreaterole as can_create_roles,
+            rolcreatedb as can_create_databases,
+            rolcanlogin as can_login,
+            COALESCE(rolconnlimit, -1) as connection_limit,
+            rolvaliduntil as valid_until
+        FROM pg_roles 
+        WHERE rolname NOT LIKE 'pg_%'
+        AND rolname != 'rds_superuser'
+        ORDER BY rolname
+    ";
+    
+    let client = pool.get().await?;
+    let rows = client.query(query, &[]).await?;
+    
+    let mut results = Vec::new();
+    for row in rows {
+        results.push(row_to_json(&row)?);
+    }
+    
+    let result_json = Value::Array(results);
+    println!("{}", format_output(&result_json, options.format));
+    Ok(())
+}
+
+async fn handle_users_create(
+    pool: &Pool,
+    username: String,
+    password: String,
+    options_str: String,
+    common_options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    let user_options: Value = parse_json_arg(&options_str, "options")?;
+    
+    let mut create_query = format!("CREATE USER {} WITH PASSWORD '{}'", username, password);
+    
+    if let Value::Object(opts) = user_options {
+        if opts.get("createdb").and_then(|v| v.as_bool()).unwrap_or(false) {
+            create_query.push_str(" CREATEDB");
+        }
+        
+        if opts.get("superuser").and_then(|v| v.as_bool()).unwrap_or(false) {
+            create_query.push_str(" SUPERUSER");
+        }
+        
+        if opts.get("createrole").and_then(|v| v.as_bool()).unwrap_or(false) {
+            create_query.push_str(" CREATEROLE");
+        }
+        
+        if let Some(conn_limit) = opts.get("connection_limit").and_then(|v| v.as_i64()) {
+            create_query.push_str(&format!(" CONNECTION LIMIT {}", conn_limit));
+        }
+        
+        if let Some(valid_until) = opts.get("valid_until").and_then(|v| v.as_str()) {
+            create_query.push_str(&format!(" VALID UNTIL '{}'", valid_until));
+        }
+    }
+    
+    let client = pool.get().await?;
+    client.execute(&create_query, &[]).await?;
+    
+    let result = json!({
+        "created": true,
+        "username": username
+    });
+    println!("{}", format_output(&result, common_options.format));
+    Ok(())
+}
+
+async fn handle_transfer_export(
+    pool: &Pool,
+    table: String,
+    output: String,
+    where_clause: Option<String>,
+    limit: Option<i64>,
+    options: &CommonOptions,
+) -> Result<(), anyhow::Error> {
+    use std::fs::File;
+    use std::io::{BufWriter, Write};
+    
+    let mut query = format!("SELECT * FROM {}", table);
+    
+    if let Some(where_cond) = where_clause {
+        query.push_str(&format!(" WHERE {}", where_cond));
+    }
+    
+    if let Some(limit_val) = limit {
+        query.push_str(&format!(" LIMIT {}", limit_val));
+    }
+    
+    let client = pool.get().await?;
+    let rows = client.query(&query, &[]).await?;
+    
+    let file = File::create(&output)?;
+    let mut writer = BufWriter::new(file);
+    
+    // Write JSON array start
+    writer.write_all(b"[\n")?;
+    let mut first = true;
+    let mut total_rows = 0;
+    
+    for row in rows {
+        if !first {
+            writer.write_all(b",\n")?;
+        }
+        first = false;
+        
+        let json_row = row_to_json(&row)?;
+        let json_string = serde_json::to_string_pretty(&json_row)?;
+        writer.write_all(b"  ")?;
+        writer.write_all(json_string.as_bytes())?;
+        total_rows += 1;
+    }
+    
+    // Write JSON array end
+    writer.write_all(b"\n]")?;
+    writer.flush()?;
+    
+    let result = json!({
+        "exported": true,
+        "table": table,
+        "output_file": output,
+        "rows_exported": total_rows
+    });
+    
+    println!("{}", format_output(&result, options.format));
+    Ok(())
+}
+
 async fn handle_health_command(
     pool: &Pool,
     options: &CommonOptions,
@@ -623,10 +1211,8 @@ async fn main() {
                 MutateOperation::Insert { table, data, returning } => {
                     handle_mutate_insert(&pool, table, data, returning, &options).await
                 },
-                MutateOperation::Update { table: _table, data: _data, where_clause: _where_clause, returning: _returning } => {
-                    // This is a simplified implementation - full implementation would parse the data JSON
-                    // and construct proper SET clauses
-                    Err(anyhow::anyhow!("Update operation not fully implemented yet"))
+                MutateOperation::Update { table, data, where_clause, returning } => {
+                    handle_mutate_update(&pool, table, data, where_clause, returning, &options).await
                 },
                 MutateOperation::Delete { table, where_clause } => {
                     let delete_query = format!("DELETE FROM {} WHERE {}", table, where_clause);
@@ -642,22 +1228,43 @@ async fn main() {
                 SchemaOperation::Tables { table } => {
                     handle_schema_tables(&pool, table, &options).await
                 },
-                SchemaOperation::CreateTable { table: _, columns: _ } => {
-                    Err(anyhow::anyhow!("Create table operation not implemented yet"))
+                SchemaOperation::CreateTable { table, columns } => {
+                    handle_schema_create_table(&pool, table, columns, &options).await
                 },
-                SchemaOperation::Indexes { table: _, stats: _ } => {
-                    Err(anyhow::anyhow!("Index operations not implemented yet"))
+                SchemaOperation::Indexes { table, stats } => {
+                    handle_schema_indexes(&pool, table, stats, &options).await
                 },
             }
         },
-        Commands::Users { operation: _ } => {
-            Err(anyhow::anyhow!("User operations not implemented yet"))
+        Commands::Users { operation } => {
+            match operation {
+                UserOperation::List => {
+                    handle_users_list(&pool, &options).await
+                },
+                UserOperation::Create { username, password, options: user_options } => {
+                    handle_users_create(&pool, username, password, user_options, &options).await
+                },
+            }
         },
-        Commands::Monitor { operation: _ } => {
-            Err(anyhow::anyhow!("Monitor operations not implemented yet"))
+        Commands::Monitor { operation } => {
+            match operation {
+                MonitorOperation::Stats => {
+                    handle_monitor_stats(&pool, &options).await
+                },
+                MonitorOperation::Connections => {
+                    handle_monitor_connections(&pool, &options).await
+                },
+                MonitorOperation::SlowQueries { min_duration, limit } => {
+                    handle_monitor_slow_queries(&pool, min_duration, limit, &options).await
+                },
+            }
         },
-        Commands::Transfer { operation: _ } => {
-            Err(anyhow::anyhow!("Transfer operations not implemented yet"))
+        Commands::Transfer { operation } => {
+            match operation {
+                TransferOperation::Export { table, output, where_clause, limit } => {
+                    handle_transfer_export(&pool, table, output, where_clause, limit, &options).await
+                },
+            }
         },
         Commands::Health => {
             handle_health_command(&pool, &options).await

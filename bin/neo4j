@@ -1,1 +1,1 @@
-../tools/bin/neo4j.rs
+../tools/target/release/neo4j
