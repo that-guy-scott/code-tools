@@ -10,10 +10,9 @@
 ## Core Rules (Non-Negotiable)
 
 1. **Performance-First Tool Selection** - Use benchmarked tool choice below
-2. **Code Limits** - 300 lines max per change, 200 lines per commit  
-3. **Complete Code Only** - Never create placeholders or fake implementations
-4. **Knowledge Persistence** - Document significant discoveries in Neo4j for complex projects
-5. **Git Atomicity** - One logical change per commit with present-tense messages
+2. **Complete Code Only** - Never create placeholders or fake implementations
+3. **Knowledge Persistence** - Document significant discoveries in Neo4j for complex projects
+4. **Git Atomicity** - One logical change per commit with present-tense messages
 
 ## Tool Selection Decision Tree
 
@@ -80,7 +79,7 @@ git commit -m "feat: Brief description"  # Present tense, <50 chars
 
 ### For Simple Tasks
 1. Use native tools for speed
-2. Make atomic changes <200 lines
+2. Make atomic changes
 3. Commit with clear message
 
 ### For Complex Projects  
