@@ -5,7 +5,7 @@
 **Code Tools CLI** - Pure Rust high-performance toolkit:
 - `./bin/` - Symlinked binaries (no file extensions) for easy access
 - `./tools/` - High-performance Rust workspace (source + built binaries)
-- All tools: LLM client, database connectors, file operations, benchmarking
+- All tools: LLM client, database connectors, file operations, HTTP/API, cryptography
 
 ## Core Rules (Non-Negotiable)
 
@@ -20,7 +20,13 @@
 Need file operations?
 ├─ Speed critical + simple output → Native tools (find, ls, cat, du)
 ├─ Rich analysis + JSON output → ./bin/fs-fast
-└─ Database operations → ./bin/{qdrant,neo4j,postgres}
+└─ Database operations → ./bin/{qdrant,neo4j,postgres,redis}
+
+Need HTTP/API operations?
+└─ REST client → ./bin/http
+
+Need cryptographic operations?
+└─ Security tools → ./bin/crypto
 
 Need project knowledge?
 ├─ Simple task → Skip knowledge graph  
@@ -65,7 +71,9 @@ cd tools && ./build.sh
 ./bin/neo4j search "topic" --limit 3 --depth 1  # Neo4j graph DB
 ./bin/qdrant list                               # Qdrant vector DB
 ./bin/postgres health                           # PostgreSQL
-./bin/benchmark all                             # Performance tests
+./bin/redis health                              # Redis cache
+./bin/http get "https://api.github.com/users/octocat"  # HTTP client
+./bin/crypto hash "test" --algorithm sha256     # Cryptographic operations
 ```
 
 ### Git Workflow
@@ -115,18 +123,20 @@ tools/                         # Rust workspace
 │   └── cli.rs               # CLI helpers
 ├── bin/                     # Binary entry points
 │   ├── fs-fast.rs          # ✅ File operations (working)
-│   ├── test-simple.rs      # ✅ Test utility (working)
-│   ├── benchmark.rs        # ✅ Performance benchmarking (working)
+│   ├── llm.rs              # ✅ Multi-provider LLM client (working)
 │   ├── neo4j.rs            # ✅ Neo4j graph DB (neo4rs v0.7 compatible)
 │   ├── postgres.rs         # ✅ PostgreSQL connector (working)
-│   └── qdrant.rs           # ✅ Qdrant vector DB (qdrant-client v1.7 compatible)
+│   ├── qdrant.rs           # ✅ Qdrant vector DB (qdrant-client v1.7 compatible)
+│   ├── redis.rs            # ✅ Redis cache operations (working)
+│   ├── http.rs             # ✅ HTTP client (working)
+│   └── crypto.rs           # ✅ Cryptographic operations (working)
 └── tests/                   # Integration tests
 ```
 
 ### Development Commands
 ```bash
 # Build all working binaries
-cargo build --release --bin fs-fast --bin test-simple --bin benchmark --bin neo4j --bin postgres --bin qdrant
+cargo build --release --bin fs-fast --bin llm --bin neo4j --bin postgres --bin qdrant --bin redis --bin http --bin crypto
 
 # Run library tests
 cargo test --lib
@@ -139,26 +149,31 @@ cargo test --lib
 
 ## Tool Status (All Working ✅)
 
-### Current Status: 6/6 Tools Operational
+### Current Status: 8/8 Tools Operational
 
 | Tool | Status | API Version | Key Features |
 |-----------|--------|-------------|--------------|
 | **fs-fast** | ✅ Working | Native | Ultra-fast file operations, JSON output |
-| **benchmark** | ✅ Working | Native | Performance testing, Rust vs Node.js comparison |
+| **llm** | ✅ Working | reqwest 0.11 + regex 1.10 | Multi-provider LLM client, 6x faster than Node.js |
 | **postgres** | ✅ Working | tokio-postgres 0.7 | Full SQL operations, connection pooling |
-| **neo4j** | ✅ **FIXED** | neo4rs v0.7 | Graph operations, serde integration |
-| **qdrant** | ✅ **FIXED** | qdrant-client v1.7 | Vector operations, health checks |
-| **llm** | ✅ **NEW** | reqwest 0.11 + regex 1.10 | Multi-provider LLM client, 6x faster than Node.js |
+| **neo4j** | ✅ Working | neo4rs v0.7 | Graph operations, serde integration |
+| **qdrant** | ✅ Working | qdrant-client v1.7 | Vector operations, health checks |
+| **redis** | ✅ Working | redis v0.25 | Cache operations, connection pooling |
+| **http** | ✅ Working | reqwest 0.11 | HTTP client, authentication, batch processing |
+| **crypto** | ✅ Working | Multiple crypto crates | JWT, hashing, encryption, secure random |
 
 ## Security & Maintenance
 - Never commit credentials, keys, or sensitive data
 - Use `git add -p` for selective staging to avoid accidental commits
 - Backup Neo4j knowledge graph regularly for complex projects
 - Keep tool builds updated: `cd tools && ./build.sh`
-- All 6 tools now compile and run successfully
+- All 8 tools now compile and run successfully
 - Neo4j: Updated for neo4rs v0.7 with serde integration
 - Qdrant: Updated for qdrant-client v1.7 with builder patterns  
-- LLM: New high-performance multi-provider client (Ollama, Gemini, OpenAI, Claude)
+- LLM: High-performance multi-provider client (Ollama, Gemini, OpenAI, Claude)
+- Redis: Cache operations with connection pooling
+- HTTP: REST client with authentication and batch processing
+- Crypto: JWT, hashing, encryption with multiple algorithm support
 
 ---
 *This guide prioritizes actionable speed over comprehensive documentation. For edge cases, adapt these patterns to your specific context.*

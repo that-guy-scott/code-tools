@@ -61,3 +61,12 @@ Thumbs.db
 *.temp
 .tmp/
 .temp/
+
+# Rust build artifacts (ignore all build outputs)
+tools/target/
+
+# Keep Cargo.lock for reproducible builds in applications
+# tools/Cargo.lock
+
+# Keep symlinked binaries in ./bin/ (they should be tracked)
+# ./bin/* are symlinks to tools/target/release/* and should be in git

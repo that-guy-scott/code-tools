@@ -19,13 +19,22 @@ path = "bin/neo4j.rs"
 name = "postgres"
 path = "bin/postgres.rs"
 
-[[bin]]
-name = "benchmark"
-path = "bin/benchmark.rs"
 
 [[bin]]
 name = "llm"
 path = "bin/llm.rs"
+
+[[bin]]
+name = "redis"
+path = "bin/redis.rs"
+
+[[bin]]
+name = "http"
+path = "bin/http.rs"
+
+[[bin]]
+name = "crypto"
+path = "bin/crypto.rs"
 
 [dependencies]
 # Shared dependencies
@@ -52,15 +61,35 @@ neo4rs = "0.7"
 tokio-postgres = { version = "0.7", features = ["with-serde_json-1", "with-uuid-1", "with-chrono-0_4"] }
 deadpool-postgres = "0.12"
 
+# Redis specific
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+
 # Date/time handling
 chrono = { version = "0.4", features = ["serde"] }
 
-# LLM tool specific
-reqwest = { version = "0.11", features = ["json", "stream"] }
+# HTTP and LLM tools specific
+reqwest = { version = "0.11", features = ["json", "stream", "cookies", "multipart"] }
 regex = "1.10"
 dotenv = "0.15"
 async-trait = "0.1"
 atty = "0.2"
+
+# HTTP tool specific
+base64 = "0.22"
+url = "2.5"
+futures = "0.3"
+
+# Crypto tool specific
+jsonwebtoken = "9.3"
+bcrypt = "0.15"
+sha2 = "0.10"
+sha3 = "0.10"
+aes-gcm = "0.10"
+chacha20poly1305 = "0.10"
+hex = "0.4"
+rand = "0.8"
+getrandom = "0.2"
+urlencoding = "2.1"
 
 [profile.release]
 lto = true

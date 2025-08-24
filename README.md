@@ -9,14 +9,11 @@
 ![Rust](https://img.shields.io/badge/Rust-High_Performance-DE3F24?style=for-the-badge&logo=rust&logoColor=white)
 ![Claude Code](https://img.shields.io/badge/Claude_Code-Ready-4A90E2?style=for-the-badge)
 ![MCP](https://img.shields.io/badge/MCP-Enabled-6B73FF?style=for-the-badge)
-![Performance](https://img.shields.io/badge/6x_Faster-LLM_CLI-00D084?style=for-the-badge)
-![Speed](https://img.shields.io/badge/3.5x_Faster-File_Ops-FF6B6B?style=for-the-badge)
+![Production](https://img.shields.io/badge/Production-Ready-00D084?style=for-the-badge)
 
 </div>
 
-**High-performance Rust CLI toolkit for Claude Code development with integrated database stack and MCP servers.**
-
-*Complete architectural transformation from Node.js prototype to production Rust workspace achieving 3.5x-6x performance improvements.*
+**Production-ready Rust CLI toolkit for Claude Code development with integrated database stack and MCP servers.**
 
 ## 🚀 Quick Start
 
@@ -32,59 +29,58 @@ docker-compose up -d
 ./bin/llm "Hello from Rust CLI!"
 ```
 
-## ⚡ Performance-First Rust Architecture
+## ⚡ Rust Architecture
 
-**6 Production-Ready Tools** - All optimized with LTO, strip, and panic=abort:
+**8 Production-Ready Tools** - All optimized with LTO, strip, and panic=abort:
 
-| Tool | Performance vs Native | Purpose | Key Features |
-|------|----------------------|---------|--------------|
-| **fs-fast** | 3.5x faster find operations | File system operations | JSON output, parallel processing |
-| **llm** | 6x faster than Node.js | Multi-provider LLM client | Ollama, OpenAI, Claude, Gemini |
-| **neo4j** | Native Rust performance | Knowledge graph operations | neo4rs v0.7, serde integration |
-| **postgres** | Connection pooling | SQL database operations | tokio-postgres, deadpool |
-| **qdrant** | High-throughput vectors | Vector database client | qdrant-client v1.7 |
-| **benchmark** | Rust vs other tools | Performance testing | Comparative analysis |
+| Tool | Purpose | Key Features |
+|------|---------|--------------|
+| **fs-fast** | File system operations | JSON output, parallel processing, rich analysis |
+| **llm** | Multi-provider LLM client | Ollama, OpenAI, Claude, Gemini support |
+| **neo4j** | Knowledge graph operations | neo4rs v0.7, serde integration, async queries |
+| **postgres** | SQL database operations | tokio-postgres, connection pooling, deadpool |
+| **qdrant** | Vector database client | qdrant-client v1.7, high-throughput vectors |
+| **redis** | Redis cache operations | redis v0.25, connection pooling, async |
+| **http** | HTTP client operations | reqwest, authentication, batch processing |
+| **crypto** | Cryptographic operations | JWT, hashing, encryption, secure random |
 
 ## 🔧 Rust Workspace Structure
 
 ```
-tools/                          # High-performance Rust workspace
-├── bin/                       # 6 optimized CLI tools
-│   ├── fs-fast.rs            # ⚡ File operations (3.5x faster)
-│   ├── llm.rs                # ⚡ LLM client (6x faster)
-│   ├── neo4j.rs              # 🔗 Knowledge graph
-│   ├── postgres.rs           # 🗄️ SQL database
-│   ├── qdrant.rs             # 🧠 Vector database
-│   └── benchmark.rs          # 📊 Performance testing
-├── src/shared/               # Modular shared libraries
-└── target/release/           # Compiled optimized binaries
+./                              # Project root
+├── bin/                       # 🔗 User-facing symlinks (clean API)
+│   ├── fs-fast -> ../tools/target/release/fs-fast
+│   ├── llm -> ../tools/target/release/llm  
+│   ├── neo4j -> ../tools/target/release/neo4j
+│   ├── postgres -> ../tools/target/release/postgres
+│   ├── qdrant -> ../tools/target/release/qdrant
+│   ├── redis -> ../tools/target/release/redis
+│   ├── http -> ../tools/target/release/http
+│   └── crypto -> ../tools/target/release/crypto
+└── tools/                     # 🦀 High-performance Rust workspace
+    ├── bin/                   # 📝 Rust source files (development)
+    │   ├── fs-fast.rs        # ⚡ File operations source
+    │   ├── llm.rs            # ⚡ LLM client source
+    │   ├── neo4j.rs          # 🔗 Knowledge graph source
+    │   ├── postgres.rs       # 🗄️ SQL database source
+    │   ├── qdrant.rs         # 🧠 Vector database source
+    │   ├── redis.rs          # 🔄 Cache operations source
+    │   ├── http.rs           # 🌐 HTTP client source
+    │   └── crypto.rs         # 🔐 Cryptographic operations source
+    ├── src/                   # 📚 Shared library code
+    │   ├── lib.rs            # Main library entry point
+    │   └── shared/           # Common utilities (CLI, error handling, output)
+    └── target/release/        # 🏗️ Compiled optimized binaries
 ```
 
-**Symlinked for Easy Access:**
-```bash
-./bin/fs-fast    # → tools/target/release/fs-fast
-./bin/llm        # → tools/target/release/llm
-./bin/neo4j      # → tools/target/release/neo4j
-./bin/postgres   # → tools/target/release/postgres
-./bin/qdrant     # → tools/target/release/qdrant
-```
+### Directory Purpose Separation
 
-## 📊 Performance Benchmarks
+**Clean 3-Layer Architecture:**
+- **`./bin/*`** → User interface (symlinks for easy access)
+- **`tools/bin/*.rs`** → Development source files (Rust binary entry points)  
+- **`tools/src/`** → Shared library code (utilities, error handling, output formatting)
+- **`tools/target/release/`** → Compiled binaries (build artifacts)
 
-Based on real-world testing documented in CLAUDE.md:
-
-| Operation | Native Tools | fs-fast | Performance Gain |
-|-----------|--------------|---------|------------------|
-| Find files | 35ms | 122ms* | **3.5x faster for basic ops** |
-| Directory listing | 2ms | 3ms | **1.5x faster** |
-| Rich JSON analysis | N/A | 122ms | **Only option for structured output** |
-
-*Note: fs-fast trades some speed for rich JSON output and parallel processing capabilities*
-
-**LLM CLI Performance:**
-- **6x faster** than equivalent Node.js implementation
-- Multi-provider support (Ollama, OpenAI, Claude, Gemini)
-- Optimized with reqwest async HTTP client
 
 ## 🗄️ Database Services
 
@@ -121,25 +117,38 @@ Pre-configured Claude Code MCP servers:
 
 ## 🛠️ Development Workflow
 
+### Build Process
 ```bash
-# Build optimized Rust tools
+# Build optimized Rust tools (creates binaries in tools/target/release/)
 cd tools && ./build.sh
 
-# Performance testing
-./bin/benchmark all
+# Symlinks in ./bin/ automatically point to new binaries
+./bin/fs-fast --help  # Uses tools/target/release/fs-fast
+```
 
-# File operations (3.5x faster basic ops)
+### Tool Usage Examples
+```bash
+# File operations with rich JSON output
 ./bin/fs-fast scan --depth 3 --sizes
-find . -name "*.rs" -type f                    # Still fastest for simple finds
+find . -name "*.rs" -type f                    # Fast for simple finds
 
-# LLM operations (6x faster)
+# LLM operations (6x faster than Node.js)
 ./bin/llm "analyze this code" --verbose
 ./bin/llm --list-models
+
+# HTTP client operations  
+./bin/http get "https://api.github.com/users/octocat"
+./bin/http post "https://httpbin.org/post" --data '{"test": "data"}'
 
 # Database operations
 ./bin/neo4j search "component" --limit 3 --depth 1
 ./bin/postgres health
 ./bin/qdrant list
+./bin/redis health
+
+# Cryptographic operations
+./bin/crypto hash "password" --algorithm sha256
+./bin/crypto jwt sign --payload '{"user": "test"}' --secret "key"
 ```
 
 ## 🎯 Tool Selection Decision Tree
@@ -151,42 +160,37 @@ Need file operations?
 └─ Database operations → ./bin/{neo4j,postgres,qdrant}
 
 Need LLM operations?
-├─ High performance required → ./bin/llm (6x faster)
-├─ Multiple providers → ./bin/llm --list-models
-└─ Legacy compatibility → Node.js alternatives
+├─ Multi-provider support → ./bin/llm --list-models
+└─ Direct LLM queries → ./bin/llm "your prompt"
 
-Need performance analysis?
-└─ Rust vs other tools → ./bin/benchmark all
+Need HTTP/API operations?
+└─ REST client → ./bin/http get/post/put/delete
+
+Need cryptographic operations?
+└─ Security tools → ./bin/crypto hash/encrypt/jwt
 ```
 
 ## 🔧 Setup for New Projects
 
 ```bash
-# Copy this high-performance environment
+# Copy this toolkit environment
 ./setup.sh /path/to/your/project
 
 # Build Rust tools in new location
 cd /path/to/your/project/tools && ./build.sh
 ```
 
-## 🏆 Project Evolution
+## ✨ Features
 
-**Architectural Transformation Journey:**
-
-1. **v1.0** - Node.js prototype with MCP servers
-2. **v2.0** - Hybrid Node.js + Rust experimentation  
-3. **v3.0** - **Complete Rust rewrite** 🦀
-   - 6 production-ready tools
-   - 3.5x-6x performance improvements
-   - Modern async Rust (tokio, reqwest)
-   - Optimized release builds
-
-**Recent Milestones:**
-- ✅ Complete transition to pure Rust architecture
-- ✅ All 6 tools fully operational
-- ✅ Performance benchmarking implemented
-- ✅ Symlinked binaries for easy access
-- ✅ Production-ready optimization (LTO, strip)
+**Current Status: 8/8 Tools Operational**
+- ✅ **Clean Architecture**: Proper separation of user interface, source code, and build artifacts
+- ✅ **8 Production-Ready Rust Tools**: All optimized with LTO, strip, and panic=abort
+- ✅ **Modern Async Architecture**: tokio, reqwest, deadpool connection pooling
+- ✅ **Symlinked Binaries**: `./bin/*` for easy access, auto-updates on rebuild
+- ✅ **Comprehensive Database Stack**: Neo4j, PostgreSQL, Redis, Qdrant integration
+- ✅ **HTTP Client**: Full REST support with authentication and batch processing  
+- ✅ **Cryptographic Suite**: JWT, hashing, encryption, secure random generation
+- ✅ **Consistent Workspace**: Follows Rust/Cargo conventions for multi-binary projects
 
 ## 📄 License
 
