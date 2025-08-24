@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CollectionAction","Commands","PointAction"],"fn":["create_client","handle_collection_command","handle_health_command","handle_point_command","handle_search_command","main","parse_distance_metric","parse_point_id","parse_point_ids","parse_points","parse_vector"],"struct":["Cli"]};

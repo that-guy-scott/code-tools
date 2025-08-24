@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Commands"],"fn":["benchmark_command","benchmark_file_ops","benchmark_neo4j_rust","benchmark_postgres_rust","benchmark_qdrant_nodejs","benchmark_qdrant_rust","generate_comparison_report","handle_all_benchmark","main"],"struct":["BenchmarkResult","Cli"]};

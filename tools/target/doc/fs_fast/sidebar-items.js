@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Commands"],"fn":["handle_health","handle_read","handle_scan","handle_stats","handle_write","main"],"struct":["Cli","FileInfo","ReadResult","ScanResult","StatsResult","WriteResult"]};

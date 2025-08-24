@@ -1,0 +1,1 @@
+searchState.loadedDescShard("test_simple", 0, "Simple test connector\nHealth check\nTest command\nEnable debug mode\nOutput format (json|text|csv)\nReturns the argument unchanged.\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.\nCalls <code>U::from(self)</code>.")

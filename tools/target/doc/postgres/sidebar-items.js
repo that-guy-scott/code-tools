@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Commands","MonitorOperation","MutateOperation","SchemaOperation","TransferOperation","UserOperation"],"fn":["create_pool","handle_execute_command","handle_health_command","handle_mutate_insert","handle_schema_tables","handle_select_command","json_to_sql_params","main","postgres_value_to_json","row_to_json"],"struct":["Cli"]};

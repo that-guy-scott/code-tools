@@ -23,9 +23,9 @@
       ]
     },
     "qdrant": {
-      "command": "npx",
+      "command": "uvx",
       "args": [
-        "better-qdrant-mcp-server"
+        "mcp-server-qdrant"
       ],
       "env": {
         "QDRANT_URL": "http://localhost:6333"

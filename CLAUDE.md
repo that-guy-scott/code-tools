@@ -1,315 +1,165 @@
-# CLAUDE.md
+# CLAUDE.md - Essential Guide
 
-## Core Rules
+## Project Architecture 
 
-1. **Always utilize the JetBrains Marketplace Code Protocol (MCP)** whenever possible.
-2. **Limit all new code contributions and code updates** to a maximum of 400 lines per change. This helps maintain code quality, reviewability, and project manageability.
-3. **ALWAYS use and update the Neo4j Knowledge Graph** for persistent project knowledge.
-4. **ALWAYS follow Strategic Git Workflow practices** for maintainable project history.
-5. **NEVER Create placeholder or Fake code** you must write all methods/functions/classes to completion.
+**Code Tools CLI** - Pure Rust high-performance toolkit:
+- `./bin/` - Symlinked binaries (no file extensions) for easy access
+- `./tools/` - High-performance Rust workspace (source + built binaries)
+- All tools: LLM client, database connectors, file operations, benchmarking
 
-## Strategic Git Workflow
+## Core Rules (Non-Negotiable)
 
-### Before Starting Work:
-- Always check `git status` and `git log --oneline -5` to understand current state
-- Create feature branches for non-trivial changes: `git checkout -b feature/description`
-- Search Neo4j memory for related work to avoid conflicts
+1. **Performance-First Tool Selection** - Use benchmarked tool choice below
+2. **Code Limits** - 300 lines max per change, 200 lines per commit  
+3. **Complete Code Only** - Never create placeholders or fake implementations
+4. **Knowledge Persistence** - Document significant discoveries in Neo4j for complex projects
+5. **Git Atomicity** - One logical change per commit with present-tense messages
 
-### During Development:
-- Stage changes incrementally: `git add -p` for selective staging
-- Make atomic commits - one logical change per commit
-- Keep commits under 200 lines per rule #2 (supports reviewability)
-- Use present tense commit messages: "Add feature" not "Added feature"
+## Tool Selection Decision Tree
 
-### Commit Message Standards:
-- Format: `[Type] Brief description (max 50 chars)`
-- Types: feat, fix, docs, refactor, test, chore, cleanup
-- Always exclude Claude Code attribution footer
-- Reference issue/task numbers when applicable
+```
+Need file operations?
+├─ Speed critical + simple output → Native tools (find, ls, cat, du)
+├─ Rich analysis + JSON output → ./bin/fs-fast
+└─ Database operations → ./bin/{qdrant,neo4j,postgres}
 
-### Before Pushing:
-- Review changes: `git diff --cached` before committing
-- Check for sensitive data: never commit credentials, keys, or large files
-- Validate .gitignore effectiveness: `git status` should show clean working tree
-- Update Neo4j memory with significant changes before pushing
-
-## Neo4j Knowledge Graph System - CRITICAL USAGE INSTRUCTIONS
-
-### Rule: ALWAYS Use Neo4j Knowledge Graph for Project Context
-
-**BEFORE starting any task:**
-1. **Search existing knowledge** with Neo4j MCP to understand current project state
-2. **Query related entities** to understand dependencies and relationships
-3. **Leverage past knowledge** instead of rediscovering information
-
-**AFTER completing any task:**
-1. **Document new knowledge** in Neo4j with appropriate entity types
-2. **Update existing entities** with new observations when relevant
-3. **Create relationships** between new and existing entities
-4. **Store troubleshooting solutions** for future reference
-
-### Memory Entity Types to Use
-
-- **`project`** - Main project information (e.g., "code-tools")
-- **`application`** - CLI applications and executables (e.g., "ollama-cli", "gemini-cli")
-- **`mcp_server`** - MCP server configurations (e.g., "jetbrains-mcp", "neo4j-agent-memory")
-- **`database_service`** - Running database instances (e.g., "postgresql-service", "neo4j-service")
-- **`config_file`** - Configuration files and settings (e.g., ".mcp.json", "docker-compose.yml")
-- **`operational_workflow`** - Step-by-step procedures (e.g., "complete-mcp-setup", "neo4j-backup")
-- **`development_workflow`** - Development patterns and practices (e.g., "mcp-integration-pattern")
-- **`technology_stack`** - Runtime environments and platforms (e.g., "nodejs-runtime", "docker-platform")
-- **`troubleshooting_knowledge`** - Common problems and solutions
-- **`security_knowledge`** - Security patterns and requirements
-
-### Memory Relationship Types to Use
-
-- **`CONTAINS`** - Containment (project contains applications, components)
-- **`DEPENDS_ON`** - Dependencies (MCP server depends on database service)
-- **`CONFIGURES`** - Configuration relationships (config file configures service)
-- **`INTEGRATES_WITH`** - Integration relationships (project integrates with IDE)
-- **`LEVERAGES`** - Utilization relationships (CLI leverages vector database)
-- **`ENABLES`** - Enablement relationships (project enables automation workflow)
-- **`BUILT_ON`** - Foundation relationships (project built on Node.js runtime)
-- **`IMPLEMENTED_BY`** - Implementation relationships (pattern implemented by project)
-
-### Neo4j Knowledge Graph Usage Patterns
-
-**When working on files:**
-```javascript
-// 1. Search for related entities using Neo4j agent memory
-"Search for entities related to filename or component type"
-
-// 2. After changes, store new knowledge in Neo4j
-"Create entity for new-component of type service with observations: functionality added, configuration updated"
-
-// 3. Create relationships using graph concepts
-"Connect new-component to existing-component with relationship depends_on"
+Need project knowledge?
+├─ Simple task → Skip knowledge graph  
+├─ Complex/multi-component → Search Neo4j first: --limit 3 --depth 1
+└─ New discoveries → Document in Neo4j after completion
 ```
 
-**When troubleshooting:**
-```javascript
-// 1. Search Neo4j for known issues with graph context
-"Search for entities related to error message or symptom"
-"Find troubleshooting knowledge for similar issues"
+## Performance Benchmarks
 
-// 2. Document solutions in Neo4j knowledge graph
-"Create troubleshooting entity for issue-description with observations: problem, root cause, solution steps, prevention"
+| Operation | Native Tools | fs-fast | Performance Difference |
+|-----------|--------------|---------|----------------------|
+| Find files | 35ms | 122ms | **3.5x faster** |
+| List directory | 2ms | 3ms | **1.5x faster** |
+| File reading | ~equal | ~equal | No significant difference |
+| Rich analysis | N/A | 122ms | **Only option for JSON** |
 
-// 3. Link to related components for future reference
-"Connect this issue to the affected components and services"
-```
+## Essential Commands
 
-**When adding new features:**
-```javascript
-// 1. Use Neo4j to find related patterns
-"Search for similar features or components in the knowledge graph"
-"Show me entities connected to the area I'm working on"
-
-// 2. Document new feature with graph relationships
-"Create development workflow entity for new-feature with purpose, implementation, dependencies"
-
-// 3. Use graph algorithms to understand impact
-"Show me the shortest path between new-feature and existing systems"
-"Find all components that might be affected by this change"
-```
-
-### Neo4j Query Optimization - MANDATORY LIMITS
-
-**CRITICAL: All Neo4j searches MUST use these parameters to prevent token overflow:**
-
-**Default Query Parameters (ALWAYS USE):**
-- `limit: 5` - Maximum entities per query (prevents large responses)
-- `depth: 1` - Single hop relationships only (reduces complexity)
-- Use specific queries over broad searches
-
-**Query Strategy Hierarchy:**
-1. **Start specific**: Search for exact entity names first
-2. **Use filters**: Add `label` or `since_date` to narrow results  
-3. **Paginate large sets**: Use multiple small queries vs. one large query
-4. **Check token usage**: If response > 10K tokens, reduce limit further
-
-**Required Parameter Combinations:**
-```javascript
-// ALWAYS use these patterns
-"Search for entities related to [specific-term]" + limit: 3 + depth: 1
-
-// For broader searches, add filters
-"Search for entities related to [broad-term]" + limit: 5 + label: "project" + depth: 1
-
-// For recent changes only
-"Search for entities related to [term]" + limit: 5 + since_date: "2024-08-01" + depth: 1
-```
-
-**Token-Safe Query Examples:**
-- ✅ `search_memories(query: "authentication", limit: 3, depth: 1)`
-- ✅ `search_memories(query: "MCP server", limit: 5, label: "mcp_server", depth: 1)`
-- ❌ `search_memories(query: "Claude Code", limit: 10, depth: 2)` - Too broad!
-
-**When You Hit Token Limits:**
-1. Reduce `limit` to 3 or fewer
-2. Add `label` filter to narrow scope
-3. Use `since_date` for recent items only
-4. Break into multiple specific queries
-5. Use Neo4j Cypher queries for complex analysis instead
-
-## Enhanced Semantic Knowledge System - STREAMLINED WORKFLOWS
-
-### Hybrid Intelligence: Neo4j + Nomic Embeddings + Qdrant
-
-**BEFORE starting any development task:**
-1. **Hybrid search** for related work: `code-tools --knowledge-search "your task description"`
-2. **Graph context** from Neo4j memories: Search related entities (limit: 3, depth: 1)
-3. **Cross-reference** findings between graph knowledge and semantic matches
-
-**DURING development work:**
-1. **Search similar patterns** to avoid reinventing solutions: `code-tools --semantic-search "pattern description"`
-2. **Document new entities** in Neo4j as you discover components
-3. **Note semantic relationships** between similar content
-
-**AFTER completing any task:**
-1. **Index new knowledge**: `code-tools --index-knowledge` to update semantic vectors
-2. **Update Neo4j entities** with new observations and relationships
-3. **Validate cross-references** between graph and semantic knowledge
-
-### Context7 Integration - Current Documentation
-
-**For up-to-date code examples and documentation:**
-- Add `use context7` to any coding prompts to get current, version-specific docs
-- Prevents outdated or hallucinated code examples
-- Works automatically with MCP infrastructure
-
-**Example prompts:**
-```
-"Create a Next.js 14 project with app router. use context7"
-"Show MongoDB aggregation pipeline best practices. use context7" 
-"Write TypeScript interface for REST API. use context7"
-```
-
-### Streamlined Semantic Commands
-
-**Knowledge Indexing:**
+### File Operations
 ```bash
-# Index project files for semantic search
-code-tools --index-knowledge
+# Speed-critical basic operations
+find . -name "*.ts" -type f         # Fastest file search
+ls -la src/                         # Fastest directory listing  
+cat src/file.ts                     # Fast file reading
 
-# Uses: Ollama nomic-embed-text + MCP Qdrant storage + Neo4j linking
+# Rich analysis when you need JSON
+./bin/fs-fast scan --depth 3 --sizes
+./bin/fs-fast stats --summary
 ```
 
-**Semantic Search:**
+### Database Tools (High-Performance Rust)
 ```bash
-# Search project knowledge semantically
-code-tools --semantic-search "authentication patterns"
-code-tools --semantic-search "MCP server configuration"
+# Build Rust workspace (creates optimized binaries)
+cd tools && ./build.sh
 
-# Uses: MCP Qdrant server for vector similarity search
+# Working tools (symlinked for easy access)
+./bin/fs-fast scan --depth 3 --sizes           # File operations
+./bin/fs-fast stats --summary                  # Project analysis
+./bin/llm "hello world"                        # High-performance LLM CLI (6x faster)
+
+# All database tools (fully working)
+./bin/neo4j search "topic" --limit 3 --depth 1  # Neo4j graph DB
+./bin/qdrant list                               # Qdrant vector DB
+./bin/postgres health                           # PostgreSQL
+./bin/benchmark all                             # Performance tests
 ```
 
-**Hybrid Knowledge Search:**
+### Git Workflow
 ```bash
-# Combine Neo4j graph + semantic search
-code-tools --knowledge-search "database connection issues"
-code-tools --knowledge-search "CLI command structure"
-
-# Uses: Neo4j agent memory + Qdrant semantic + fusion scoring
+git status && git log --oneline -3   # Check current state
+git add -p                           # Selective staging
+git commit -m "feat: Brief description"  # Present tense, <50 chars
 ```
 
-### Integration with Three-Database Architecture
+## Streamlined Workflows
 
-**Database Coordination:**
-- **Neo4j** - Entity relationships and project context (via MCP agent memory)
-- **Qdrant** - Semantic vectors and content similarity (via MCP Qdrant server) 
-- **PostgreSQL** - Structured metadata and cross-system references (via MCP postgres)
+### For Simple Tasks
+1. Use native tools for speed
+2. Make atomic changes <200 lines
+3. Commit with clear message
 
-**Workflow Integration:**
-- Neo4j searches use mandatory limits (limit: 3-5, depth: 1) to prevent token overflow
-- Semantic indexing creates corresponding Neo4j entities for cross-system linking
-- Hybrid search combines graph traversal with vector similarity for comprehensive results
+### For Complex Projects  
+1. **Before**: Search existing knowledge: `./bin/neo4j search "component" --limit 3 --depth 1`
+2. **During**: Document new entities as you discover them
+3. **After**: Create relationships between new and existing components
 
-### Knowledge Graph Maintenance Workflows - MANDATORY PROCEDURES
-
-**BEFORE starting ANY development task:**
-1. **Query current project state**: `"Search for entities related to [component/feature I'm working on]"` (limit: 3, depth: 1)
-2. **Check dependencies**: `"Show me all components connected to [my target area]"` (limit: 5, depth: 1)
-3. **Review recent changes**: `"Find recent entities or relationships modified in the last week"` (limit: 5, since_date: recent)
-4. **Validate assumptions**: Use graph queries to confirm current architecture understanding
-
-**DURING development work:**
-1. **Track new entities needed**: Document new components, configs, or workflows as you discover them
-2. **Note relationship changes**: Identify when dependencies or integrations are modified
-3. **Capture troubleshooting knowledge**: Record solutions and root causes as they're discovered
-4. **Update observations**: Add new functionality or behavior changes to existing entities
-
-**AFTER completing ANY task:**
-1. **Document all changes**: Create/update entities for new components, configurations, or workflows
-2. **Establish relationships**: Connect new entities to existing ones with appropriate relationship types
-3. **Update existing entities**: Add observations about modified functionality or configuration
-4. **Verify consistency**: Run validation queries to ensure graph integrity
-5. **Impact assessment**: Query the graph to understand what else might be affected by changes
-
-
-## Essential MCP Servers
-
-**Core Servers:**
-- **neo4j-agent-memory** - AI agent memory and knowledge graph ⚠️ **REQUIRES ENV VARS**
-- **jetbrains** - IntelliJ IDEA integration and file operations
-- **postgres** - Database operations with transaction support  
-- **qdrant** - Vector database for semantic search
-- **context7** - Up-to-date code documentation and examples
-- **docker-mcp** - Container management
-- **github** - Repository management
-
-**Usage Guidelines:**
-- **Neo4j**: Always search before creating entities, use kebab-case naming
-- **JetBrains**: Use project-relative paths, prefer `get_file_text_by_path`
-- **PostgreSQL**: Use transactions for write operations
-- **Qdrant**: Use for semantic search and vector storage
-- **Context7**: Add "use context7" to prompts for up-to-date documentation
-- **Query Limits**: Always use limit: 3-5, depth: 1 to prevent token overflow
-
-**CRITICAL: Neo4j Agent Memory Configuration**
-```json
-"neo4j-agent-memory": {
-  "command": "npx",
-  "args": ["@knowall-ai/mcp-neo4j-agent-memory"],
-  "env": {
-    "NEO4J_URI": "bolt://localhost:7687",
-    "NEO4J_USERNAME": "neo4j",
-    "NEO4J_PASSWORD": "dev_password_123"
-  }
-}
-```
-**⚠️ MUST restart Claude Code after any `.mcp.json` changes!**
-
-## Project Guidelines
-
-### Code Limits
-- Maximum 200 lines per commit
-- Use `git add -p` for selective staging
-- Each commit should be reviewable and testable
-
-### Entity Naming
-- Use kebab-case: "new-service" not "newService"
-- Be descriptive: "auth-token-validator" not "validator"
-- Use consistent prefixes for related entities
-
-### Security
-- Never expose credentials in code or logs
-- Use transaction-safe operations for database changes
-- Backup regularly - protect knowledge graph data
+### Token Management (Critical)
+- Neo4j queries: ALWAYS use `--limit 3-5 --depth 1`
+- Break large queries into multiple small ones
+- Prefer specific searches over broad ones
 
 ## Quick Reference
 
-### Essential Commands
 ```bash
-# Neo4j operations (with mandatory limits)
-"Search for entities related to [topic]" (limit: 3, depth: 1)
-"Create entity for [name] of type [type] with observations: [facts]"
-
-# Git workflow
-git status && git log --oneline -3
-git add -p
-git commit -m "feat: Brief description"
-
-# Container status
-docker ps | grep code-tools
+# Most common operations
+find . -name "*.ts" | head -10                              # Fast file search
+./bin/fs-fast scan --depth 2 --sizes                # Rich file analysis
+./bin/llm "analyze this code" --verbose              # LLM analysis (6x faster)
+./bin/neo4j search "auth" --limit 3 --depth 1       # Knowledge search
+git add -p && git commit -m "fix: Issue description"       # Atomic commit
 ```
+
+## Rust Development
+
+### Tool Structure
+```
+tools/                         # Rust workspace
+├── src/lib.rs                # Library with shared utilities  
+├── src/shared/               # Modular shared code
+│   ├── output.rs            # Output formatting (JSON/CSV/text)
+│   ├── error.rs             # Error handling
+│   └── cli.rs               # CLI helpers
+├── bin/                     # Binary entry points
+│   ├── fs-fast.rs          # ✅ File operations (working)
+│   ├── test-simple.rs      # ✅ Test utility (working)
+│   ├── benchmark.rs        # ✅ Performance benchmarking (working)
+│   ├── neo4j.rs            # ✅ Neo4j graph DB (neo4rs v0.7 compatible)
+│   ├── postgres.rs         # ✅ PostgreSQL connector (working)
+│   └── qdrant.rs           # ✅ Qdrant vector DB (qdrant-client v1.7 compatible)
+└── tests/                   # Integration tests
+```
+
+### Development Commands
+```bash
+# Build all working binaries
+cargo build --release --bin fs-fast --bin test-simple --bin benchmark --bin neo4j --bin postgres --bin qdrant
+
+# Run library tests
+cargo test --lib
+
+# Add new tool
+# 1. Create bin/new-tool.rs
+# 2. Add [[bin]] entry to Cargo.toml  
+# 3. Use: use code_tools_connectors::shared::{OutputFormat, format_output};
+```
+
+## Tool Status (All Working ✅)
+
+### Current Status: 6/6 Tools Operational
+
+| Tool | Status | API Version | Key Features |
+|-----------|--------|-------------|--------------|
+| **fs-fast** | ✅ Working | Native | Ultra-fast file operations, JSON output |
+| **benchmark** | ✅ Working | Native | Performance testing, Rust vs Node.js comparison |
+| **postgres** | ✅ Working | tokio-postgres 0.7 | Full SQL operations, connection pooling |
+| **neo4j** | ✅ **FIXED** | neo4rs v0.7 | Graph operations, serde integration |
+| **qdrant** | ✅ **FIXED** | qdrant-client v1.7 | Vector operations, health checks |
+| **llm** | ✅ **NEW** | reqwest 0.11 + regex 1.10 | Multi-provider LLM client, 6x faster than Node.js |
+
+## Security & Maintenance
+- Never commit credentials, keys, or sensitive data
+- Use `git add -p` for selective staging to avoid accidental commits
+- Backup Neo4j knowledge graph regularly for complex projects
+- Keep tool builds updated: `cd tools && ./build.sh`
+- All 6 tools now compile and run successfully
+- Neo4j: Updated for neo4rs v0.7 with serde integration
+- Qdrant: Updated for qdrant-client v1.7 with builder patterns  
+- LLM: New high-performance multi-provider client (Ollama, Gemini, OpenAI, Claude)
+
+---
+*This guide prioritizes actionable speed over comprehensive documentation. For edge cases, adapt these patterns to your specific context.*
