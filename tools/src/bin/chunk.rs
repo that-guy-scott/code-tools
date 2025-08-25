@@ -15,22 +15,23 @@ use code_tools_connectors::shared::{OutputFormat, format_output};
 #[command(name = "chunk")]
 #[command(about = "🦀 High-performance text chunking with AI-powered semantic analysis via Ollama + Nomic embeddings")]
 #[command(long_about = "
-🦀 **High-Performance Text Chunking Tool**
+USAGE:
+    chunk <SUBCOMMAND> [OPTIONS]
 
-Split text intelligently using 6 different strategies:
-• **semantic** - AI-powered chunking with Ollama + Nomic embeddings  
-• **smart** - Hybrid approach combining semantic analysis with size constraints
-• **sentence** - Sentence-aware boundaries with Unicode support
-• **paragraph** - Paragraph-based chunking for structured documents  
-• **code** - Function/class aware chunking for programming files
-• **fixed** - Traditional fixed-size chunks with configurable overlap
+STRATEGIES:
+    semantic   AI-powered chunking using Ollama + Nomic embeddings
+    smart      Hybrid: semantic analysis with size constraints
+    sentence   Sentence-aware chunking (Unicode support)
+    paragraph  Paragraph-based chunking (for structured docs)
+    code       Code-aware chunking (function/class boundaries)
+    fixed      Fixed-size chunks with configurable overlap
 
-**Key Features:**
-• Unicode-safe text processing (emojis, international characters)
-• Multiple output formats (JSON, text, CSV) 
-• Batch processing for directories
-• Rich metadata and performance tracking
-• Production-ready with comprehensive error handling
+KEY FEATURES:
+    - Unicode-safe text processing (emojis, international)
+    - Multiple output formats: json, text, csv
+    - Batch processing for directories
+    - Rich metadata and performance tracking
+    - Comprehensive error handling
 
 **Examples:**
   # Semantic chunking with Ollama + Nomic embeddings

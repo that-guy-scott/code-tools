@@ -27,6 +27,7 @@ docker-compose up -d
 # Test the blazing-fast CLI tools
 ./bin/fs-fast scan --depth 3 --sizes
 ./bin/llm "Hello from Rust CLI!"
+cat README.md | llm --timeout 300 --model=llama3.1:8b "You are an expert document analyst. Your task is to analyze the following text and insert the delimiter '<CHUNK_END>' wherever a new, distinct section or topic begins. Do not remove any of the original text. The delimiter should only be placed at the end of a complete thought, paragraph, or section."
 ```
 
 ## ⚡ Rust Architecture
