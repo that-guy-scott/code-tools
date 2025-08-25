@@ -7,6 +7,38 @@ edition = "2021"
 name = "chunk"
 path = "src/bin/chunk.rs"
 
+[[bin]]
+name = "fs-fast"
+path = "src/bin/fs-fast.rs"
+
+[[bin]]
+name = "llm"
+path = "src/bin/llm.rs"
+
+[[bin]]
+name = "neo4j"
+path = "src/bin/neo4j.rs"
+
+[[bin]]
+name = "postgres"
+path = "src/bin/postgres.rs"
+
+[[bin]]
+name = "qdrant"
+path = "src/bin/qdrant.rs"
+
+[[bin]]
+name = "redis"
+path = "src/bin/redis.rs"
+
+[[bin]]
+name = "http"
+path = "src/bin/http.rs"
+
+[[bin]]
+name = "crypto"
+path = "src/bin/crypto.rs"
+
 [dependencies]
 # Shared dependencies
 clap = { version = "4.4", features = ["derive"] }

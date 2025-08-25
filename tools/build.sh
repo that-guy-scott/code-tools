@@ -20,7 +20,7 @@ echo "📦 Building optimized binaries..."
 cargo build --release
 
 # Copy binaries to tools directory and create bin symlinks
-BINARIES=("chunk")
+BINARIES=("chunk" "fs-fast" "llm" "neo4j" "postgres" "qdrant" "redis" "http" "crypto")
 BUILT_COUNT=0
 
 for binary in "${BINARIES[@]}"; do
@@ -52,8 +52,20 @@ fi
 echo ""
 echo "🧪 Testing tools..."
 
+# Test a few key tools
+if [ -f "./fs-fast" ]; then
+    ./fs-fast --help > /dev/null && echo "  ✅ fs-fast OK" || echo "  ❌ fs-fast failed"
+fi
+
+if [ -f "./llm" ]; then
+    ./llm --help > /dev/null && echo "  ✅ llm OK" || echo "  ❌ llm failed"
+fi
+
+if [ -f "./postgres" ]; then
+    ./postgres --help > /dev/null && echo "  ✅ postgres OK" || echo "  ❌ postgres failed"
+fi
+
 if [ -f "./chunk" ]; then
-    echo "Testing chunk..."
     ./chunk --help > /dev/null && echo "  ✅ chunk OK" || echo "  ❌ chunk failed"
 fi
 
@@ -62,13 +74,23 @@ echo "🎉 Build complete! ($BUILT_COUNT/$((${#BINARIES[@]})) tools built)"
 echo "📂 Binaries available in both ./tools/ and ./bin/ (symlinked)"
 echo ""
 echo "📋 Usage examples:"
-echo "  # Text chunking with semantic analysis"
+echo "  # File operations"
+echo "  ./bin/fs-fast scan --depth 3 --sizes"
+echo "  ./bin/fs-fast stats --summary"
+echo ""
+echo "  # LLM operations"
+echo "  ./bin/llm 'Analyze this code' --provider ollama"
+echo ""
+echo "  # Database operations"
+echo "  ./bin/postgres health"
+echo "  ./bin/neo4j search 'topic' --limit 3"
+echo "  ./bin/qdrant list"
+echo "  ./bin/redis health"
+echo ""
+echo "  # HTTP operations"
+echo "  ./bin/http get 'https://api.github.com/users/octocat'"
+echo ""
+echo "  # Text chunking"
 echo "  ./bin/chunk text 'Long document text...' --strategy semantic"
 echo "  ./bin/chunk file document.md --strategy smart --size 1000"
-echo "  ./bin/chunk batch ./docs --pattern '*.md' --strategy paragraph"
-echo ""
-echo "  # Traditional chunking strategies"
-echo "  ./bin/chunk file code.rs --strategy code --size 800"
-echo "  ./bin/chunk text 'Sample text' --strategy sentence --format json"
-echo "  ./bin/chunk file article.txt --strategy paragraph --output chunks.json"
 echo ""
