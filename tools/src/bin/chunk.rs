@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::io::{self, Read};
 use clap::{Parser, Subcommand, ValueEnum};
 use anyhow::{Context, Result};
 use serde::{Serialize, Deserialize};
@@ -7,6 +8,7 @@ use serde_json::json;
 use unicode_segmentation::UnicodeSegmentation;
 use reqwest::Client;
 use tokio;
+use regex;
 
 use code_tools_connectors::shared::{OutputFormat, format_output};
 
@@ -25,6 +27,7 @@ STRATEGIES:
     paragraph  Paragraph-based chunking (for structured docs)
     code       Code-aware chunking (function/class boundaries)
     fixed      Fixed-size chunks with configurable overlap
+    llm        LLM-guided logical boundary detection with embeddings
 
 KEY FEATURES:
     - Unicode-safe text processing (emojis, international)
@@ -35,13 +38,20 @@ KEY FEATURES:
 
 **Examples:**
   # Semantic chunking with Ollama + Nomic embeddings
-  chunk text \"document content...\" --strategy semantic --model nomic-embed-text
+  chunk text --content \"document content...\" --strategy semantic --model nomic-embed-text
+  
+  # Piped input (reads from stdin)
+  cat document.txt | chunk text --strategy semantic
+  echo \"sample text\" | chunk text --strategy sentence --format json
   
   # Smart hybrid approach  
   chunk file document.md --strategy smart --size 1000 --threshold 0.8
   
+  # LLM-guided logical chunking with embeddings
+  chunk file document.md --strategy llm --llm-model gpt-oss:latest
+  
   # Traditional sentence chunking
-  chunk text \"content...\" --strategy sentence --format json
+  chunk text --content \"content...\" --strategy sentence --format json
   
   # Code-aware chunking
   chunk file code.rs --strategy code --size 800
@@ -60,12 +70,13 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Chunk text content directly
+    /// Chunk text content directly (or from piped input)  
     Text {
-        /// Text content to chunk
-        content: String,
+        /// Text content to chunk (optional - reads from stdin if not provided)
+        #[arg(long, short)]
+        content: Option<String>,
         
-        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart
+        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm
         #[arg(long, short = 's', default_value = "fixed")]
         strategy: ChunkStrategy,
         
@@ -92,6 +103,18 @@ enum Commands {
         /// Semantic similarity threshold: higher = fewer, larger chunks (0.0-1.0)
         #[arg(long, default_value = "0.8")]
         threshold: f32,
+        
+        /// LLM model for boundary detection (used with llm strategy)
+        #[arg(long, default_value = "gpt-oss:latest")]
+        llm_model: String,
+        
+        /// LLM provider URL (used with llm strategy)  
+        #[arg(long, default_value = "http://localhost:11434")]
+        llm_url: String,
+        
+        /// Custom prompt for chunk boundary detection
+        #[arg(long)]
+        chunk_prompt: Option<String>,
     },
     
     /// Chunk text from file
@@ -99,7 +122,7 @@ enum Commands {
         /// Input file path
         path: String,
         
-        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart
+        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm
         #[arg(long, short = 's', default_value = "fixed")]
         strategy: ChunkStrategy,
         
@@ -130,6 +153,18 @@ enum Commands {
         /// Semantic similarity threshold: higher = fewer, larger chunks (0.0-1.0)
         #[arg(long, default_value = "0.8")]
         threshold: f32,
+        
+        /// LLM model for boundary detection (used with llm strategy)
+        #[arg(long, default_value = "gpt-oss:latest")]
+        llm_model: String,
+        
+        /// LLM provider URL (used with llm strategy)  
+        #[arg(long, default_value = "http://localhost:11434")]
+        llm_url: String,
+        
+        /// Custom prompt for chunk boundary detection
+        #[arg(long)]
+        chunk_prompt: Option<String>,
     },
     
     /// Batch process multiple files
@@ -141,7 +176,7 @@ enum Commands {
         #[arg(long, short = 'p', default_value = "*")]
         pattern: String,
         
-        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart
+        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm
         #[arg(long, short = 's', default_value = "fixed")]
         strategy: ChunkStrategy,
         
@@ -172,6 +207,18 @@ enum Commands {
         /// Semantic similarity threshold: higher = fewer, larger chunks (0.0-1.0)
         #[arg(long, default_value = "0.8")]
         threshold: f32,
+        
+        /// LLM model for boundary detection (used with llm strategy)
+        #[arg(long, default_value = "gpt-oss:latest")]
+        llm_model: String,
+        
+        /// LLM provider URL (used with llm strategy)  
+        #[arg(long, default_value = "http://localhost:11434")]
+        llm_url: String,
+        
+        /// Custom prompt for chunk boundary detection
+        #[arg(long)]
+        chunk_prompt: Option<String>,
     },
 }
 
@@ -189,6 +236,8 @@ enum ChunkStrategy {
     Semantic,
     /// Smart hybrid combining semantic analysis with size constraints (best of both)
     Smart,
+    /// LLM-guided chunking using boundary detection tags (requires LLM client)
+    Llm,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -281,6 +330,9 @@ impl TextChunker {
         model: &str,
         threshold: f32,
         source: Option<String>,
+        llm_model: Option<&str>,
+        llm_url: Option<&str>,
+        chunk_prompt: Option<&str>,
     ) -> Result<ChunkingResult> {
         let start_time = std::time::Instant::now();
         
@@ -291,6 +343,7 @@ impl TextChunker {
             ChunkStrategy::Code => self.chunk_code(text, size, overlap),
             ChunkStrategy::Semantic => self.chunk_semantic(text, size, model, threshold).await?,
             ChunkStrategy::Smart => self.chunk_smart(text, size, overlap, model, threshold).await?,
+            ChunkStrategy::Llm => self.chunk_llm(text, llm_model.unwrap_or("gpt-oss:latest"), llm_url.unwrap_or("http://localhost:11434"), model, chunk_prompt).await?,
         };
         
         let processing_time = start_time.elapsed();
@@ -301,7 +354,7 @@ impl TextChunker {
             0.0
         };
         
-        let embeddings_used = matches!(strategy, ChunkStrategy::Semantic | ChunkStrategy::Smart);
+        let embeddings_used = matches!(strategy, ChunkStrategy::Semantic | ChunkStrategy::Smart | ChunkStrategy::Llm);
         
         Ok(ChunkingResult {
             chunks,
@@ -628,6 +681,31 @@ impl TextChunker {
         Ok(chunks)
     }
     
+    async fn chunk_llm(&self, text: &str, llm_model: &str, llm_url: &str, embed_model: &str, custom_prompt: Option<&str>) -> Result<Vec<Chunk>> {
+        // Default prompt for chunk boundary detection
+        let default_prompt = "You are an expert document analyst. Your task is to analyze the following text and wrap logical sections in chunk tags using '<CHUNK_START>' and '<CHUNK_END>' delimiters.
+
+Guidelines:
+- Wrap complete thoughts, paragraphs, or logical sections in <CHUNK_START> and <CHUNK_END> tags
+- Create chunks at natural breaking points where content shifts to new topics, sections, or distinct concepts
+- Each chunk should contain coherent, related content
+- Maintain all original text exactly as provided
+- Do not add any explanatory text, comments, or analysis
+- Output only the original document with chunk tags inserted
+
+Return the processed text immediately without any preamble or additional commentary.";
+
+        let prompt = custom_prompt.unwrap_or(default_prompt);
+        
+        // Call LLM to process the text and add boundary tags
+        let tagged_response = self.call_llm(llm_url, llm_model, &format!("{}\n\n{}", prompt, text)).await?;
+        
+        // Parse the response to extract chunks between <CHUNK_START> and <CHUNK_END> tags
+        let chunks = self.extract_chunks_from_tags(&tagged_response, embed_model).await?;
+        
+        Ok(chunks)
+    }
+    
     async fn chunk_smart(&self, text: &str, size: usize, overlap: usize, model: &str, threshold: f32) -> Result<Vec<Chunk>> {
         // Smart chunking: Use semantic analysis to find natural boundaries,
         // but respect size constraints
@@ -681,6 +759,94 @@ impl TextChunker {
         
         Ok(embed_response.embedding)
     }
+    
+    async fn call_llm(&self, llm_url: &str, model: &str, prompt: &str) -> Result<String> {
+        // Create a simple LLM request similar to Ollama's chat API
+        let request_body = serde_json::json!({
+            "model": model,
+            "prompt": prompt,
+            "stream": false
+        });
+        
+        let response = self.client
+            .post(&format!("{}/api/generate", llm_url))
+            .json(&request_body)
+            .send()
+            .await
+            .context("Failed to send request to LLM")?;
+        
+        if !response.status().is_success() {
+            return Err(anyhow::anyhow!("LLM API returned error: {}", response.status()));
+        }
+        
+        let response_json: serde_json::Value = response
+            .json()
+            .await
+            .context("Failed to parse LLM response")?;
+            
+        let response_text = response_json["response"]
+            .as_str()
+            .unwrap_or("")
+            .to_string();
+            
+        Ok(response_text)
+    }
+    
+    async fn extract_chunks_from_tags(&self, tagged_text: &str, embed_model: &str) -> Result<Vec<Chunk>> {
+        let mut chunks = Vec::new();
+        let mut current_pos = 0;
+        let mut chunk_index = 0;
+        
+        // Use regex to find chunks between tags (including multiline and whitespace)
+        let chunk_regex = regex::Regex::new(r"(?s)<CHUNK_START>\s*(.*?)\s*<CHUNK_END>")
+            .context("Failed to compile regex")?;
+        
+        for captures in chunk_regex.captures_iter(tagged_text) {
+            if let Some(content_match) = captures.get(1) {
+                let content = content_match.as_str().trim().to_string();
+                
+                if !content.is_empty() {
+                    // Generate embedding for this chunk
+                    let embedding = self.get_embedding(&content, embed_model).await.ok();
+                    
+                    chunks.push(Chunk {
+                        content: content.clone(),
+                        start: current_pos,
+                        end: current_pos + content.len(),
+                        index: chunk_index,
+                        size: content.len(),
+                        overlap: 0,
+                        strategy: "llm".to_string(),
+                        similarity: None,
+                        embedding,
+                        source: None,
+                    });
+                    
+                    current_pos += content.len();
+                    chunk_index += 1;
+                }
+            }
+        }
+        
+        // If no chunks were found, treat the entire text as one chunk
+        if chunks.is_empty() {
+            let embedding = self.get_embedding(tagged_text, embed_model).await.ok();
+            chunks.push(Chunk {
+                content: tagged_text.to_string(),
+                start: 0,
+                end: tagged_text.len(),
+                index: 0,
+                size: tagged_text.len(),
+                overlap: 0,
+                strategy: "llm".to_string(),
+                similarity: None,
+                embedding,
+                source: None,
+            });
+        }
+        
+        Ok(chunks)
+    }
 }
 
 fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
@@ -699,28 +865,62 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
+fn read_stdin() -> Result<String> {
+    let mut buffer = String::new();
+    io::stdin().read_to_string(&mut buffer)
+        .context("Failed to read from stdin")?;
+    Ok(buffer)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     
     match cli.command {
         Commands::Text { 
-            content, strategy, size, overlap, format, model, ollama_url, threshold 
+            content, strategy, size, overlap, format, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt 
         } => {
+            let input_text = match content {
+                Some(text) => text,
+                None => read_stdin()?,
+            };
+            
             let chunker = TextChunker::new(ollama_url);
-            let result = chunker.chunk_text(&content, strategy, size, overlap, &model, threshold, None).await?;
+            let result = chunker.chunk_text(
+                &input_text, 
+                strategy, 
+                size, 
+                overlap, 
+                &model, 
+                threshold, 
+                None, 
+                Some(&llm_model), 
+                Some(&llm_url), 
+                chunk_prompt.as_deref()
+            ).await?;
             let output = format_output(&json!(result), format);
             println!("{}", output);
         }
         
         Commands::File { 
-            path, strategy, size, overlap, format, output, model, ollama_url, threshold 
+            path, strategy, size, overlap, format, output, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt 
         } => {
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read file: {}", path))?;
             
             let chunker = TextChunker::new(ollama_url);
-            let result = chunker.chunk_text(&content, strategy, size, overlap, &model, threshold, Some(path.clone())).await?;
+            let result = chunker.chunk_text(
+                &content, 
+                strategy, 
+                size, 
+                overlap, 
+                &model, 
+                threshold, 
+                Some(path.clone()), 
+                Some(&llm_model), 
+                Some(&llm_url), 
+                chunk_prompt.as_deref()
+            ).await?;
             let output_text = format_output(&json!(result), format);
             
             if let Some(output_path) = output {
@@ -733,7 +933,7 @@ async fn main() -> Result<()> {
         }
         
         Commands::Batch { 
-            dir, pattern, strategy, size, overlap, format, output_dir, model, ollama_url, threshold 
+            dir, pattern, strategy, size, overlap, format, output_dir, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt 
         } => {
             // Create output directory
             fs::create_dir_all(&output_dir)
@@ -766,7 +966,10 @@ async fn main() -> Result<()> {
                             overlap, 
                             &model, 
                             threshold,
-                            Some(file_path.to_string_lossy().to_string())
+                            Some(file_path.to_string_lossy().to_string()),
+                            Some(&llm_model), 
+                            Some(&llm_url), 
+                            chunk_prompt.as_deref()
                         ).await?;
                         
                         let output_file = format!("{}/{}_chunks.{}", 
