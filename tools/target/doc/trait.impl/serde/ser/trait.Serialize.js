@@ -1,9 +1,0 @@
-(function() {
-    var implementors = Object.fromEntries([["fs_fast",[["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.219/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"fs_fast/struct.FileInfo.html\" title=\"struct fs_fast::FileInfo\">FileInfo</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.219/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"fs_fast/struct.ReadResult.html\" title=\"struct fs_fast::ReadResult\">ReadResult</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.219/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"fs_fast/struct.ScanResult.html\" title=\"struct fs_fast::ScanResult\">ScanResult</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.219/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"fs_fast/struct.StatsResult.html\" title=\"struct fs_fast::StatsResult\">StatsResult</a>"],["impl <a class=\"trait\" href=\"https://docs.rs/serde/1.0.219/serde/ser/trait.Serialize.html\" title=\"trait serde::ser::Serialize\">Serialize</a> for <a class=\"struct\" href=\"fs_fast/struct.WriteResult.html\" title=\"struct fs_fast::WriteResult\">WriteResult</a>"]]]]);
-    if (window.register_implementors) {
-        window.register_implementors(implementors);
-    } else {
-        window.pending_implementors = implementors;
-    }
-})()
-//{"start":57,"fragment_lengths":[1343]}

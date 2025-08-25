@@ -1,3 +1,0 @@
-var srcIndex = new Map(JSON.parse('[["benchmark",["",[],["benchmark.rs"]]],["code_tools_connectors",["",[["connectors",[],["mod.rs"]],["shared",[],["cli.rs","error.rs","mod.rs","output.rs"]]],["lib.rs"]]],["fs_fast",["",[],["fs-fast.rs"]]],["neo4j",["",[],["neo4j.rs"]]],["postgres",["",[],["postgres.rs"]]],["qdrant",["",[],["qdrant.rs"]]],["test_simple",["",[],["test-simple.rs"]]]]'));
-createSrcSidebar();
-//{"start":36,"fragment_lengths":[38,130,35,31,37,33,43]}

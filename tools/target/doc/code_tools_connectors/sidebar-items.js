@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["NAME","VERSION"],"mod":["connectors","shared"]};
