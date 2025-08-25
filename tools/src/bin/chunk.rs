@@ -21,13 +21,19 @@ USAGE:
     chunk <SUBCOMMAND> [OPTIONS]
 
 STRATEGIES:
-    semantic   AI-powered chunking using Ollama + Nomic embeddings
-    smart      Hybrid: semantic analysis with size constraints
-    sentence   Sentence-aware chunking (Unicode support)
-    paragraph  Paragraph-based chunking (for structured docs)
-    code       Code-aware chunking (function/class boundaries)
-    fixed      Fixed-size chunks with configurable overlap
-    llm        LLM-guided logical boundary detection with embeddings
+    semantic       AI-powered chunking using Ollama + Nomic embeddings
+    smart          Hybrid: semantic analysis with size constraints
+    sentence       Sentence-aware chunking (Unicode support)
+    paragraph      Paragraph-based chunking (for structured docs)
+    code           Code-aware chunking (function/class boundaries)
+    fixed          Fixed-size chunks with configurable overlap
+    llm            LLM-guided logical boundary detection with embeddings
+    heading-based  Split on markdown headers (H1-H6 boundaries)
+    dialogue       Speaker-aware chunking for conversations/interviews
+    list-aware     List-aware chunking preserving bullet/numbered lists
+    table-aware    Table-aware chunking preserving markdown/CSV table boundaries
+    token-aware    Token-count aware chunking with configurable limits
+    recursive      Recursive chunking with hierarchical size constraints
 
 KEY FEATURES:
     - Unicode-safe text processing (emojis, international)
@@ -49,6 +55,9 @@ KEY FEATURES:
   
   # LLM-guided logical chunking with embeddings
   chunk file document.md --strategy llm --llm-model gpt-oss:latest
+  
+  # Heading-based chunking (split on H1, H2, H3)
+  chunk file document.md --strategy heading-based --heading-levels \"1,2,3\"
   
   # Traditional sentence chunking
   chunk text --content \"content...\" --strategy sentence --format json
@@ -76,7 +85,7 @@ enum Commands {
         #[arg(long, short)]
         content: Option<String>,
         
-        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm
+        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm, heading-based, dialogue, list-aware, table-aware, token-aware, recursive
         #[arg(long, short = 's', default_value = "fixed")]
         strategy: ChunkStrategy,
         
@@ -115,6 +124,30 @@ enum Commands {
         /// Custom prompt for chunk boundary detection
         #[arg(long)]
         chunk_prompt: Option<String>,
+        
+        /// Header levels to split on (1-6, comma-separated, e.g., "1,2,3")
+        #[arg(long, default_value = "1,2,3,4,5,6")]
+        heading_levels: String,
+        
+        /// Speaker detection regex pattern for dialogue chunking
+        #[arg(long, default_value = r"^([A-Z][A-Za-z\s]+):\s*")]
+        speaker_pattern: String,
+        
+        /// Token limit for token-aware chunking
+        #[arg(long, default_value = "2048")]
+        token_limit: usize,
+        
+        /// Tokenizer type: word (simple word count), gpt (estimate GPT tokens)
+        #[arg(long, default_value = "word")]
+        tokenizer: String,
+        
+        /// Maximum chunk size for recursive chunking
+        #[arg(long, default_value = "2000")]
+        max_chunk_size: usize,
+        
+        /// Minimum chunk size for recursive chunking
+        #[arg(long, default_value = "100")]
+        min_chunk_size: usize,
     },
     
     /// Chunk text from file
@@ -122,7 +155,7 @@ enum Commands {
         /// Input file path
         path: String,
         
-        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm
+        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm, heading-based, dialogue, list-aware, table-aware, token-aware, recursive
         #[arg(long, short = 's', default_value = "fixed")]
         strategy: ChunkStrategy,
         
@@ -165,6 +198,30 @@ enum Commands {
         /// Custom prompt for chunk boundary detection
         #[arg(long)]
         chunk_prompt: Option<String>,
+        
+        /// Header levels to split on (1-6, comma-separated, e.g., "1,2,3")
+        #[arg(long, default_value = "1,2,3,4,5,6")]
+        heading_levels: String,
+        
+        /// Speaker detection regex pattern for dialogue chunking
+        #[arg(long, default_value = r"^([A-Z][A-Za-z\s]+):\s*")]
+        speaker_pattern: String,
+        
+        /// Token limit for token-aware chunking
+        #[arg(long, default_value = "2048")]
+        token_limit: usize,
+        
+        /// Tokenizer type: word (simple word count), gpt (estimate GPT tokens)
+        #[arg(long, default_value = "word")]
+        tokenizer: String,
+        
+        /// Maximum chunk size for recursive chunking
+        #[arg(long, default_value = "2000")]
+        max_chunk_size: usize,
+        
+        /// Minimum chunk size for recursive chunking
+        #[arg(long, default_value = "100")]
+        min_chunk_size: usize,
     },
     
     /// Batch process multiple files
@@ -176,7 +233,7 @@ enum Commands {
         #[arg(long, short = 'p', default_value = "*")]
         pattern: String,
         
-        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm
+        /// Chunking strategy: fixed, sentence, paragraph, code, semantic, smart, llm, heading-based, dialogue, list-aware, table-aware, token-aware, recursive
         #[arg(long, short = 's', default_value = "fixed")]
         strategy: ChunkStrategy,
         
@@ -219,6 +276,30 @@ enum Commands {
         /// Custom prompt for chunk boundary detection
         #[arg(long)]
         chunk_prompt: Option<String>,
+        
+        /// Header levels to split on (1-6, comma-separated, e.g., "1,2,3")
+        #[arg(long, default_value = "1,2,3,4,5,6")]
+        heading_levels: String,
+        
+        /// Speaker detection regex pattern for dialogue chunking
+        #[arg(long, default_value = r"^([A-Z][A-Za-z\s]+):\s*")]
+        speaker_pattern: String,
+        
+        /// Token limit for token-aware chunking
+        #[arg(long, default_value = "2048")]
+        token_limit: usize,
+        
+        /// Tokenizer type: word (simple word count), gpt (estimate GPT tokens)
+        #[arg(long, default_value = "word")]
+        tokenizer: String,
+        
+        /// Maximum chunk size for recursive chunking
+        #[arg(long, default_value = "2000")]
+        max_chunk_size: usize,
+        
+        /// Minimum chunk size for recursive chunking
+        #[arg(long, default_value = "100")]
+        min_chunk_size: usize,
     },
 }
 
@@ -238,6 +319,18 @@ enum ChunkStrategy {
     Smart,
     /// LLM-guided chunking using boundary detection tags (requires LLM client)
     Llm,
+    /// Heading-based chunking splitting on markdown headers (H1-H6)
+    HeadingBased,
+    /// Dialogue/conversation chunking preserving speaker boundaries
+    Dialogue,
+    /// List-aware chunking preserving bullet points and numbered lists
+    ListAware,
+    /// Table-aware chunking preserving markdown and CSV table boundaries
+    TableAware,
+    /// Token-count aware chunking with configurable limits and tokenizers
+    TokenAware,
+    /// Recursive chunking with hierarchical size constraints
+    Recursive,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -333,6 +426,12 @@ impl TextChunker {
         llm_model: Option<&str>,
         llm_url: Option<&str>,
         chunk_prompt: Option<&str>,
+        heading_levels: Option<&str>,
+        speaker_pattern: Option<&str>,
+        token_limit: Option<usize>,
+        tokenizer: Option<&str>,
+        max_chunk_size: Option<usize>,
+        min_chunk_size: Option<usize>,
     ) -> Result<ChunkingResult> {
         let start_time = std::time::Instant::now();
         
@@ -344,6 +443,12 @@ impl TextChunker {
             ChunkStrategy::Semantic => self.chunk_semantic(text, size, model, threshold).await?,
             ChunkStrategy::Smart => self.chunk_smart(text, size, overlap, model, threshold).await?,
             ChunkStrategy::Llm => self.chunk_llm(text, llm_model.unwrap_or("gpt-oss:latest"), llm_url.unwrap_or("http://localhost:11434"), model, chunk_prompt).await?,
+            ChunkStrategy::HeadingBased => self.chunk_heading_based(text, heading_levels.unwrap_or("1,2,3,4,5,6")),
+            ChunkStrategy::Dialogue => self.chunk_dialogue(text, speaker_pattern.unwrap_or(r"^([A-Z][A-Za-z\s]+):\s*")),
+            ChunkStrategy::ListAware => self.chunk_list_aware(text, size, overlap),
+            ChunkStrategy::TableAware => self.chunk_table_aware(text, size, overlap),
+            ChunkStrategy::TokenAware => self.chunk_token_aware(text, token_limit.unwrap_or(2048), tokenizer.unwrap_or("word")),
+            ChunkStrategy::Recursive => self.chunk_recursive(text, max_chunk_size.unwrap_or(2000), min_chunk_size.unwrap_or(100)),
         };
         
         let processing_time = start_time.elapsed();
@@ -735,6 +840,917 @@ Return the processed text immediately without any preamble or additional comment
         }
     }
     
+    fn chunk_heading_based(&self, text: &str, heading_levels: &str) -> Vec<Chunk> {
+        // Parse heading levels from comma-separated string (e.g., "1,2,3")
+        let levels: Vec<usize> = heading_levels
+            .split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .filter(|&level| level >= 1 && level <= 6)
+            .collect();
+        
+        if levels.is_empty() {
+            // Fallback: treat entire text as one chunk if no valid levels specified
+            return vec![Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "heading-based".to_string(),
+                similarity: None,
+                embedding: None,
+                source: None,
+            }];
+        }
+        
+        let lines: Vec<&str> = text.lines().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk_lines: Vec<String> = Vec::new();
+        let mut chunk_start_line = 0;
+        let mut chunk_index = 0;
+        let mut char_position = 0;
+        
+        for (line_idx, line) in lines.iter().enumerate() {
+            let trimmed_line = line.trim_start();
+            let mut is_heading = false;
+            
+            // Check if this line is a markdown header at one of our target levels
+            if trimmed_line.starts_with('#') {
+                let hash_count = trimmed_line.chars().take_while(|&c| c == '#').count();
+                if hash_count <= 6 && levels.contains(&hash_count) {
+                    // Ensure there's a space after the hashes (proper markdown)
+                    if trimmed_line.chars().nth(hash_count) == Some(' ') || trimmed_line.len() == hash_count {
+                        is_heading = true;
+                    }
+                }
+            }
+            
+            // If we found a heading and we have content to chunk, create a chunk
+            if is_heading && !current_chunk_lines.is_empty() {
+                let chunk_text = current_chunk_lines.join("\n");
+                let chunk_start = char_position - chunk_text.len() - current_chunk_lines.len() + 1;
+                
+                chunks.push(Chunk {
+                    content: chunk_text.clone(),
+                    start: chunk_start,
+                    end: char_position - 1,
+                    index: chunk_index,
+                    size: chunk_text.len(),
+                    overlap: 0,
+                    strategy: "heading-based".to_string(),
+                    similarity: None,
+                    embedding: None,
+                    source: Some(format!("lines {}-{}", chunk_start_line + 1, line_idx)),
+                });
+                
+                chunk_index += 1;
+                current_chunk_lines.clear();
+                chunk_start_line = line_idx;
+            }
+            
+            // Add current line to the current chunk
+            current_chunk_lines.push(line.to_string());
+            char_position += line.len() + 1; // +1 for newline character
+        }
+        
+        // Add the final chunk if there's remaining content
+        if !current_chunk_lines.is_empty() {
+            let chunk_text = current_chunk_lines.join("\n");
+            let chunk_start = char_position - chunk_text.len() - current_chunk_lines.len() + 1;
+            
+            chunks.push(Chunk {
+                content: chunk_text.clone(),
+                start: chunk_start,
+                end: char_position - 1,
+                index: chunk_index,
+                size: chunk_text.len(),
+                overlap: 0,
+                strategy: "heading-based".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some(format!("lines {}-{}", chunk_start_line + 1, lines.len())),
+            });
+        }
+        
+        // If no chunks were created (no headers found), return entire text as one chunk
+        if chunks.is_empty() {
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "heading-based".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some("entire document (no headers found)".to_string()),
+            });
+        }
+        
+        chunks
+    }
+    
+    fn chunk_dialogue(&self, text: &str, speaker_pattern: &str) -> Vec<Chunk> {
+        // Parse lines and group by speaker turns
+        let lines: Vec<&str> = text.lines().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk_lines: Vec<String> = Vec::new();
+        let mut current_speaker: Option<String> = None;
+        let mut chunk_index = 0;
+        let mut char_position = 0;
+        let mut chunk_start_line = 0;
+        let mut chunk_start_pos = 0;
+        
+        // Compile the regex pattern for speaker detection
+        let speaker_regex = match regex::Regex::new(speaker_pattern) {
+            Ok(regex) => regex,
+            Err(_) => {
+                // Fallback: treat entire text as one chunk if regex fails
+                return vec![Chunk {
+                    content: text.to_string(),
+                    start: 0,
+                    end: text.len(),
+                    index: 0,
+                    size: text.len(),
+                    overlap: 0,
+                    strategy: "dialogue".to_string(),
+                    similarity: None,
+                    embedding: None,
+                    source: Some("regex parse error - treated as single chunk".to_string()),
+                }];
+            }
+        };
+        
+        for (line_idx, line) in lines.iter().enumerate() {
+            // Check if this line starts a new speaker turn
+            let detected_speaker = if let Some(captures) = speaker_regex.captures(line) {
+                captures.get(1).map(|m| m.as_str().trim().to_string())
+            } else {
+                None
+            };
+            
+            // If we detect a new speaker and it's different from current speaker
+            if let Some(new_speaker) = &detected_speaker {
+                if current_speaker.as_ref() != Some(new_speaker) && !current_chunk_lines.is_empty() {
+                    // Create chunk for previous speaker's content
+                    let chunk_text = current_chunk_lines.join("\n");
+                    
+                    chunks.push(Chunk {
+                        content: chunk_text.clone(),
+                        start: chunk_start_pos,
+                        end: chunk_start_pos + chunk_text.len(),
+                        index: chunk_index,
+                        size: chunk_text.len(),
+                        overlap: 0,
+                        strategy: "dialogue".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!(
+                            "speaker: {} (lines {}-{})", 
+                            current_speaker.as_deref().unwrap_or("Unknown"),
+                            chunk_start_line + 1, 
+                            line_idx
+                        )),
+                    });
+                    
+                    chunk_index += 1;
+                    chunk_start_pos = char_position;
+                    chunk_start_line = line_idx;
+                    current_chunk_lines.clear();
+                }
+                
+                current_speaker = Some(new_speaker.clone());
+            }
+            
+            // Add current line to the current speaker's chunk
+            current_chunk_lines.push(line.to_string());
+            char_position += line.len() + 1; // +1 for newline
+        }
+        
+        // Add the final chunk if there's remaining content
+        if !current_chunk_lines.is_empty() {
+            let chunk_text = current_chunk_lines.join("\n");
+            
+            chunks.push(Chunk {
+                content: chunk_text.clone(),
+                start: chunk_start_pos,
+                end: chunk_start_pos + chunk_text.len(),
+                index: chunk_index,
+                size: chunk_text.len(),
+                overlap: 0,
+                strategy: "dialogue".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some(format!(
+                    "speaker: {} (lines {}-{})",
+                    current_speaker.as_deref().unwrap_or("Unknown"),
+                    chunk_start_line + 1,
+                    lines.len()
+                )),
+            });
+        }
+        
+        // If no chunks were created (no speakers detected), return entire text as one chunk
+        if chunks.is_empty() {
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "dialogue".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some("no speakers detected - treated as single chunk".to_string()),
+            });
+        }
+        
+        chunks
+    }
+    
+    fn chunk_list_aware(&self, text: &str, target_size: usize, _overlap: usize) -> Vec<Chunk> {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk_lines: Vec<String> = Vec::new();
+        let mut current_list_items: Vec<String> = Vec::new();
+        let mut in_list = false;
+        let mut chunk_index = 0;
+        let mut char_position = 0;
+        let mut chunk_start_pos = 0;
+        let mut chunk_start_line = 0;
+        
+        // Regex patterns for list detection
+        let bullet_pattern = regex::Regex::new(r"^\s*[•\-\*\+]\s+").unwrap();
+        let numbered_pattern = regex::Regex::new(r"^\s*\d+\.\s+").unwrap();
+        let sub_bullet_pattern = regex::Regex::new(r"^\s{2,}[•\-\*\+]\s+").unwrap();
+        let sub_numbered_pattern = regex::Regex::new(r"^\s{2,}\d+\.\s+").unwrap();
+        
+        for (line_idx, line) in lines.iter().enumerate() {
+            let is_list_item = bullet_pattern.is_match(line) || 
+                              numbered_pattern.is_match(line) ||
+                              sub_bullet_pattern.is_match(line) ||
+                              sub_numbered_pattern.is_match(line);
+            
+            let is_continuation = line.trim().is_empty() || 
+                                line.starts_with("  ") && !is_list_item; // Indented continuation
+            
+            // If we're starting a list
+            if is_list_item && !in_list {
+                // Finish previous chunk if we have content and it would exceed size
+                if !current_chunk_lines.is_empty() {
+                    let chunk_text = current_chunk_lines.join("\n");
+                    if chunk_text.len() + line.len() > target_size {
+                        chunks.push(Chunk {
+                            content: chunk_text.clone(),
+                            start: chunk_start_pos,
+                            end: chunk_start_pos + chunk_text.len(),
+                            index: chunk_index,
+                            size: chunk_text.len(),
+                            overlap: 0,
+                            strategy: "list-aware".to_string(),
+                            similarity: None,
+                            embedding: None,
+                            source: Some(format!("text content (lines {}-{})", chunk_start_line + 1, line_idx)),
+                        });
+                        
+                        chunk_index += 1;
+                        chunk_start_pos = char_position;
+                        chunk_start_line = line_idx;
+                        current_chunk_lines.clear();
+                    }
+                }
+                
+                in_list = true;
+                current_list_items.push(line.to_string());
+            }
+            // If we're in a list and this is another list item or continuation
+            else if in_list && (is_list_item || is_continuation) {
+                current_list_items.push(line.to_string());
+            }
+            // If we're ending a list
+            else if in_list && !is_list_item && !is_continuation {
+                // Add the complete list as content to current chunk
+                current_chunk_lines.extend(current_list_items.clone());
+                current_list_items.clear();
+                in_list = false;
+                
+                // Check if we should create a chunk
+                let current_size = current_chunk_lines.iter().map(|l| l.len() + 1).sum::<usize>();
+                if current_size + line.len() > target_size && !current_chunk_lines.is_empty() {
+                    let chunk_text = current_chunk_lines.join("\n");
+                    chunks.push(Chunk {
+                        content: chunk_text.clone(),
+                        start: chunk_start_pos,
+                        end: chunk_start_pos + chunk_text.len(),
+                        index: chunk_index,
+                        size: chunk_text.len(),
+                        overlap: 0,
+                        strategy: "list-aware".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!("list content (lines {}-{})", chunk_start_line + 1, line_idx)),
+                    });
+                    
+                    chunk_index += 1;
+                    chunk_start_pos = char_position;
+                    chunk_start_line = line_idx;
+                    current_chunk_lines.clear();
+                }
+                
+                current_chunk_lines.push(line.to_string());
+            }
+            // Regular content (not in a list)
+            else {
+                let current_size = current_chunk_lines.iter().map(|l| l.len() + 1).sum::<usize>();
+                if current_size + line.len() > target_size && !current_chunk_lines.is_empty() {
+                    let chunk_text = current_chunk_lines.join("\n");
+                    chunks.push(Chunk {
+                        content: chunk_text.clone(),
+                        start: chunk_start_pos,
+                        end: chunk_start_pos + chunk_text.len(),
+                        index: chunk_index,
+                        size: chunk_text.len(),
+                        overlap: 0,
+                        strategy: "list-aware".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!("text content (lines {}-{})", chunk_start_line + 1, line_idx)),
+                    });
+                    
+                    chunk_index += 1;
+                    chunk_start_pos = char_position;
+                    chunk_start_line = line_idx;
+                    current_chunk_lines.clear();
+                }
+                
+                current_chunk_lines.push(line.to_string());
+            }
+            
+            char_position += line.len() + 1; // +1 for newline
+        }
+        
+        // Handle any remaining content
+        if in_list && !current_list_items.is_empty() {
+            current_chunk_lines.extend(current_list_items);
+        }
+        
+        if !current_chunk_lines.is_empty() {
+            let chunk_text = current_chunk_lines.join("\n");
+            chunks.push(Chunk {
+                content: chunk_text.clone(),
+                start: chunk_start_pos,
+                end: chunk_start_pos + chunk_text.len(),
+                index: chunk_index,
+                size: chunk_text.len(),
+                overlap: 0,
+                strategy: "list-aware".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some(format!("final content (lines {}-{})", chunk_start_line + 1, lines.len())),
+            });
+        }
+        
+        // If no chunks were created, return entire text as one chunk
+        if chunks.is_empty() {
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "list-aware".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some("entire document".to_string()),
+            });
+        }
+        
+        chunks
+    }
+    
+    fn chunk_table_aware(&self, text: &str, target_size: usize, _overlap: usize) -> Vec<Chunk> {
+        let lines: Vec<&str> = text.lines().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk_lines: Vec<String> = Vec::new();
+        let mut in_table = false;
+        let mut table_lines: Vec<String> = Vec::new();
+        let mut chunk_index = 0;
+        let mut char_position = 0;
+        let mut chunk_start_pos = 0;
+        let mut chunk_start_line = 0;
+        
+        // Patterns for table detection
+        let markdown_table_row = regex::Regex::new(r"^\s*\|.*\|\s*$").unwrap();
+        let markdown_separator = regex::Regex::new(r"^\s*\|[\s\-\|:]+\|\s*$").unwrap();
+        let csv_pattern = regex::Regex::new(r"^[^,]*,[^,]*").unwrap();
+        let tsv_pattern = regex::Regex::new(r"^[^\t]*\t[^\t]*").unwrap();
+        
+        for (line_idx, line) in lines.iter().enumerate() {
+            let is_markdown_table = markdown_table_row.is_match(line) || markdown_separator.is_match(line);
+            let is_csv_table = csv_pattern.is_match(line);
+            let is_tsv_table = tsv_pattern.is_match(line);
+            let is_table_line = is_markdown_table || is_csv_table || is_tsv_table;
+            
+            // Starting a table
+            if is_table_line && !in_table {
+                // Finish previous chunk if we have content and it would exceed size
+                if !current_chunk_lines.is_empty() {
+                    let chunk_text = current_chunk_lines.join("\n");
+                    if chunk_text.len() + line.len() > target_size {
+                        chunks.push(Chunk {
+                            content: chunk_text.clone(),
+                            start: chunk_start_pos,
+                            end: chunk_start_pos + chunk_text.len(),
+                            index: chunk_index,
+                            size: chunk_text.len(),
+                            overlap: 0,
+                            strategy: "table-aware".to_string(),
+                            similarity: None,
+                            embedding: None,
+                            source: Some(format!("text content (lines {}-{})", chunk_start_line + 1, line_idx)),
+                        });
+                        
+                        chunk_index += 1;
+                        chunk_start_pos = char_position;
+                        chunk_start_line = line_idx;
+                        current_chunk_lines.clear();
+                    }
+                }
+                
+                in_table = true;
+                table_lines.push(line.to_string());
+            }
+            // Continuing a table
+            else if in_table && is_table_line {
+                table_lines.push(line.to_string());
+            }
+            // Ending a table (empty line or non-table content)
+            else if in_table && (!is_table_line && !line.trim().is_empty()) {
+                // Add the complete table to current chunk
+                current_chunk_lines.extend(table_lines.clone());
+                table_lines.clear();
+                in_table = false;
+                
+                // Check if we should create a chunk
+                let current_size = current_chunk_lines.iter().map(|l| l.len() + 1).sum::<usize>();
+                if current_size + line.len() > target_size && !current_chunk_lines.is_empty() {
+                    let chunk_text = current_chunk_lines.join("\n");
+                    chunks.push(Chunk {
+                        content: chunk_text.clone(),
+                        start: chunk_start_pos,
+                        end: chunk_start_pos + chunk_text.len(),
+                        index: chunk_index,
+                        size: chunk_text.len(),
+                        overlap: 0,
+                        strategy: "table-aware".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!("table content (lines {}-{})", chunk_start_line + 1, line_idx)),
+                    });
+                    
+                    chunk_index += 1;
+                    chunk_start_pos = char_position;
+                    chunk_start_line = line_idx;
+                    current_chunk_lines.clear();
+                }
+                
+                current_chunk_lines.push(line.to_string());
+            }
+            // Empty line while in table (preserve table spacing)
+            else if in_table && line.trim().is_empty() {
+                table_lines.push(line.to_string());
+            }
+            // Regular content (not in a table)
+            else {
+                let current_size = current_chunk_lines.iter().map(|l| l.len() + 1).sum::<usize>();
+                if current_size + line.len() > target_size && !current_chunk_lines.is_empty() {
+                    let chunk_text = current_chunk_lines.join("\n");
+                    chunks.push(Chunk {
+                        content: chunk_text.clone(),
+                        start: chunk_start_pos,
+                        end: chunk_start_pos + chunk_text.len(),
+                        index: chunk_index,
+                        size: chunk_text.len(),
+                        overlap: 0,
+                        strategy: "table-aware".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!("text content (lines {}-{})", chunk_start_line + 1, line_idx)),
+                    });
+                    
+                    chunk_index += 1;
+                    chunk_start_pos = char_position;
+                    chunk_start_line = line_idx;
+                    current_chunk_lines.clear();
+                }
+                
+                current_chunk_lines.push(line.to_string());
+            }
+            
+            char_position += line.len() + 1; // +1 for newline
+        }
+        
+        // Handle any remaining content
+        if in_table && !table_lines.is_empty() {
+            current_chunk_lines.extend(table_lines);
+        }
+        
+        if !current_chunk_lines.is_empty() {
+            let chunk_text = current_chunk_lines.join("\n");
+            chunks.push(Chunk {
+                content: chunk_text.clone(),
+                start: chunk_start_pos,
+                end: chunk_start_pos + chunk_text.len(),
+                index: chunk_index,
+                size: chunk_text.len(),
+                overlap: 0,
+                strategy: "table-aware".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some(format!("final content (lines {}-{})", chunk_start_line + 1, lines.len())),
+            });
+        }
+        
+        // If no chunks were created, return entire text as one chunk
+        if chunks.is_empty() {
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "table-aware".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some("entire document".to_string()),
+            });
+        }
+        
+        chunks
+    }
+    
+    fn chunk_token_aware(&self, text: &str, token_limit: usize, tokenizer: &str) -> Vec<Chunk> {
+        // Use sentence boundaries as the primary chunking unit for better coherence
+        let sentences: Vec<&str> = text.unicode_sentences().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk_sentences: Vec<&str> = Vec::new();
+        let mut current_token_count = 0;
+        let mut chunk_index = 0;
+        let mut char_position = 0;
+        let mut chunk_start_pos = 0;
+        
+        for sentence in sentences {
+            let sentence_tokens = self.count_tokens(sentence, tokenizer);
+            
+            // If adding this sentence would exceed the limit and we have content
+            if current_token_count + sentence_tokens > token_limit && !current_chunk_sentences.is_empty() {
+                // Create chunk from current sentences
+                let chunk_text = current_chunk_sentences.join("");
+                chunks.push(Chunk {
+                    content: chunk_text.clone(),
+                    start: chunk_start_pos,
+                    end: chunk_start_pos + chunk_text.len(),
+                    index: chunk_index,
+                    size: chunk_text.len(),
+                    overlap: 0,
+                    strategy: "token-aware".to_string(),
+                    similarity: None,
+                    embedding: None,
+                    source: Some(format!("tokens: {} (limit: {})", current_token_count, token_limit)),
+                });
+                
+                chunk_index += 1;
+                chunk_start_pos = char_position;
+                current_chunk_sentences.clear();
+                current_token_count = 0;
+            }
+            
+            // Handle sentences that exceed the token limit by themselves
+            if sentence_tokens > token_limit {
+                // If we have existing content, create a chunk first
+                if !current_chunk_sentences.is_empty() {
+                    let chunk_text = current_chunk_sentences.join("");
+                    chunks.push(Chunk {
+                        content: chunk_text.clone(),
+                        start: chunk_start_pos,
+                        end: chunk_start_pos + chunk_text.len(),
+                        index: chunk_index,
+                        size: chunk_text.len(),
+                        overlap: 0,
+                        strategy: "token-aware".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!("tokens: {} (limit: {})", current_token_count, token_limit)),
+                    });
+                    
+                    chunk_index += 1;
+                    chunk_start_pos = char_position;
+                    current_chunk_sentences.clear();
+                    current_token_count = 0;
+                }
+                
+                // Split oversized sentence by words
+                let word_chunks = self.split_by_words(sentence, token_limit, tokenizer);
+                for word_chunk in word_chunks {
+                    chunks.push(Chunk {
+                        content: word_chunk.clone(),
+                        start: char_position,
+                        end: char_position + word_chunk.len(),
+                        index: chunk_index,
+                        size: word_chunk.len(),
+                        overlap: 0,
+                        strategy: "token-aware".to_string(),
+                        similarity: None,
+                        embedding: None,
+                        source: Some(format!("split sentence tokens: ~{} (limit: {})", token_limit, token_limit)),
+                    });
+                    chunk_index += 1;
+                    char_position += word_chunk.len();
+                }
+                chunk_start_pos = char_position;
+            } else {
+                // Add sentence to current chunk
+                current_chunk_sentences.push(sentence);
+                current_token_count += sentence_tokens;
+                char_position += sentence.len();
+            }
+        }
+        
+        // Add final chunk if there's remaining content
+        if !current_chunk_sentences.is_empty() {
+            let chunk_text = current_chunk_sentences.join("");
+            chunks.push(Chunk {
+                content: chunk_text.clone(),
+                start: chunk_start_pos,
+                end: chunk_start_pos + chunk_text.len(),
+                index: chunk_index,
+                size: chunk_text.len(),
+                overlap: 0,
+                strategy: "token-aware".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some(format!("tokens: {} (limit: {})", current_token_count, token_limit)),
+            });
+        }
+        
+        // If no chunks were created, return entire text as one chunk
+        if chunks.is_empty() {
+            let total_tokens = self.count_tokens(text, tokenizer);
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "token-aware".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some(format!("tokens: {} (limit: {})", total_tokens, token_limit)),
+            });
+        }
+        
+        chunks
+    }
+    
+    fn count_tokens(&self, text: &str, tokenizer: &str) -> usize {
+        match tokenizer {
+            "word" => {
+                // Simple word-based tokenization: split by whitespace and punctuation
+                text.split_whitespace()
+                    .map(|word| {
+                        // Count punctuation as separate tokens
+                        let punct_count = word.chars()
+                            .filter(|c| c.is_ascii_punctuation())
+                            .count();
+                        // Each word + its punctuation marks
+                        1 + punct_count
+                    })
+                    .sum()
+            }
+            "gpt" => {
+                // GPT token estimation: roughly 4 characters per token for English text
+                // This is a rough approximation, more accurate than word count for GPT models
+                (text.len() as f32 / 4.0).ceil() as usize
+            }
+            _ => {
+                // Default fallback to word count
+                text.split_whitespace().count()
+            }
+        }
+    }
+    
+    fn split_by_words(&self, sentence: &str, token_limit: usize, tokenizer: &str) -> Vec<String> {
+        let words: Vec<&str> = sentence.split_whitespace().collect();
+        let mut chunks = Vec::new();
+        let mut current_chunk = Vec::new();
+        let mut current_token_count = 0;
+        
+        for word in words {
+            let word_tokens = self.count_tokens(word, tokenizer);
+            
+            if current_token_count + word_tokens > token_limit && !current_chunk.is_empty() {
+                chunks.push(current_chunk.join(" "));
+                current_chunk.clear();
+                current_token_count = 0;
+            }
+            
+            current_chunk.push(word);
+            current_token_count += word_tokens;
+        }
+        
+        if !current_chunk.is_empty() {
+            chunks.push(current_chunk.join(" "));
+        }
+        
+        // If still no chunks (single word exceeds limit), return the sentence as-is
+        if chunks.is_empty() {
+            chunks.push(sentence.to_string());
+        }
+        
+        chunks
+    }
+    
+    fn chunk_recursive(&self, text: &str, max_size: usize, min_size: usize) -> Vec<Chunk> {
+        let mut chunks = Vec::new();
+        let mut chunk_index = 0;
+        
+        // Start recursive splitting with the entire text
+        self.recursive_split(text, 0, max_size, min_size, &mut chunks, &mut chunk_index);
+        
+        // If no chunks were created (shouldn't happen), return entire text
+        if chunks.is_empty() {
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: 0,
+                end: text.len(),
+                index: 0,
+                size: text.len(),
+                overlap: 0,
+                strategy: "recursive".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some("entire document (no splitting needed)".to_string()),
+            });
+        }
+        
+        chunks
+    }
+    
+    fn recursive_split(
+        &self, 
+        text: &str, 
+        offset: usize, 
+        max_size: usize, 
+        min_size: usize, 
+        chunks: &mut Vec<Chunk>, 
+        chunk_index: &mut usize
+    ) {
+        // If text is within acceptable size, create a chunk
+        if text.len() <= max_size {
+            if text.len() >= min_size || chunks.is_empty() {
+                chunks.push(Chunk {
+                    content: text.to_string(),
+                    start: offset,
+                    end: offset + text.len(),
+                    index: *chunk_index,
+                    size: text.len(),
+                    overlap: 0,
+                    strategy: "recursive".to_string(),
+                    similarity: None,
+                    embedding: None,
+                    source: Some(format!("recursive split (size: {})", text.len())),
+                });
+                *chunk_index += 1;
+            }
+            return;
+        }
+        
+        // Try to split by sentences first (best for readability)
+        if let Some(split_point) = self.find_sentence_split_point(text, max_size) {
+            let (left, right) = text.split_at(split_point);
+            self.recursive_split(left.trim_end(), offset, max_size, min_size, chunks, chunk_index);
+            self.recursive_split(right.trim_start(), offset + left.len(), max_size, min_size, chunks, chunk_index);
+            return;
+        }
+        
+        // Try to split by paragraphs if sentences don't work
+        if let Some(split_point) = self.find_paragraph_split_point(text, max_size) {
+            let (left, right) = text.split_at(split_point);
+            self.recursive_split(left.trim_end(), offset, max_size, min_size, chunks, chunk_index);
+            self.recursive_split(right.trim_start(), offset + left.len(), max_size, min_size, chunks, chunk_index);
+            return;
+        }
+        
+        // Try to split by words
+        if let Some(split_point) = self.find_word_split_point(text, max_size) {
+            let (left, right) = text.split_at(split_point);
+            self.recursive_split(left.trim_end(), offset, max_size, min_size, chunks, chunk_index);
+            self.recursive_split(right.trim_start(), offset + left.len(), max_size, min_size, chunks, chunk_index);
+            return;
+        }
+        
+        // Last resort: split by characters (mid-word)
+        let split_point = max_size;
+        if split_point < text.len() {
+            let (left, right) = text.split_at(split_point);
+            self.recursive_split(left, offset, max_size, min_size, chunks, chunk_index);
+            self.recursive_split(right, offset + left.len(), max_size, min_size, chunks, chunk_index);
+        } else {
+            // Text fits exactly or is smaller than max_size
+            chunks.push(Chunk {
+                content: text.to_string(),
+                start: offset,
+                end: offset + text.len(),
+                index: *chunk_index,
+                size: text.len(),
+                overlap: 0,
+                strategy: "recursive".to_string(),
+                similarity: None,
+                embedding: None,
+                source: Some("recursive split (character boundary)".to_string()),
+            });
+            *chunk_index += 1;
+        }
+    }
+    
+    fn find_sentence_split_point(&self, text: &str, max_size: usize) -> Option<usize> {
+        let sentences: Vec<&str> = text.unicode_sentences().collect();
+        let mut current_pos = 0;
+        let mut best_split = None;
+        
+        for sentence in sentences {
+            let next_pos = current_pos + sentence.len();
+            if next_pos <= max_size {
+                best_split = Some(next_pos);
+                current_pos = next_pos;
+            } else {
+                break;
+            }
+        }
+        
+        best_split.filter(|&pos| pos > 0 && pos < text.len())
+    }
+    
+    fn find_paragraph_split_point(&self, text: &str, max_size: usize) -> Option<usize> {
+        // Look for double newlines (paragraph boundaries)
+        let mut current_pos = 0;
+        let mut best_split = None;
+        
+        for paragraph in text.split("\n\n") {
+            let next_pos = current_pos + paragraph.len() + 2; // +2 for \n\n
+            if next_pos <= max_size && next_pos < text.len() {
+                best_split = Some(next_pos);
+                current_pos = next_pos;
+            } else {
+                break;
+            }
+        }
+        
+        best_split.filter(|&pos| pos > 0 && pos < text.len())
+    }
+    
+    fn find_word_split_point(&self, text: &str, max_size: usize) -> Option<usize> {
+        let words: Vec<&str> = text.split_whitespace().collect();
+        let mut current_pos = 0;
+        let mut best_split = None;
+        let mut remaining_text = text;
+        
+        for word in words {
+            // Find the position of this word in the remaining text
+            if let Some(word_start) = remaining_text.find(word) {
+                let word_end_in_remaining = word_start + word.len();
+                let next_pos = current_pos + word_end_in_remaining;
+                
+                // Look for whitespace after the word
+                let whitespace_end = remaining_text[word_end_in_remaining..]
+                    .chars()
+                    .take_while(|c| c.is_whitespace())
+                    .map(|c| c.len_utf8())
+                    .sum::<usize>();
+                
+                let next_pos_with_space = next_pos + whitespace_end;
+                
+                if next_pos_with_space <= max_size && next_pos_with_space < text.len() {
+                    best_split = Some(next_pos_with_space);
+                    current_pos = next_pos_with_space;
+                    remaining_text = &remaining_text[word_end_in_remaining + whitespace_end..];
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
+        
+        best_split.filter(|&pos| pos > 0 && pos < text.len())
+    }
+    
     async fn get_embedding(&self, text: &str, model: &str) -> Result<Vec<f32>> {
         let request = OllamaEmbedRequest {
             model: model.to_string(),
@@ -878,7 +1894,7 @@ async fn main() -> Result<()> {
     
     match cli.command {
         Commands::Text { 
-            content, strategy, size, overlap, format, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt 
+            content, strategy, size, overlap, format, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt, heading_levels, speaker_pattern, token_limit, tokenizer, max_chunk_size, min_chunk_size 
         } => {
             let input_text = match content {
                 Some(text) => text,
@@ -896,14 +1912,20 @@ async fn main() -> Result<()> {
                 None, 
                 Some(&llm_model), 
                 Some(&llm_url), 
-                chunk_prompt.as_deref()
+                chunk_prompt.as_deref(),
+                Some(&heading_levels),
+                Some(&speaker_pattern),
+                Some(token_limit),
+                Some(&tokenizer),
+                Some(max_chunk_size),
+                Some(min_chunk_size)
             ).await?;
             let output = format_output(&json!(result), format);
             println!("{}", output);
         }
         
         Commands::File { 
-            path, strategy, size, overlap, format, output, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt 
+            path, strategy, size, overlap, format, output, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt, heading_levels, speaker_pattern, token_limit, tokenizer, max_chunk_size, min_chunk_size 
         } => {
             let content = fs::read_to_string(&path)
                 .with_context(|| format!("Failed to read file: {}", path))?;
@@ -919,7 +1941,13 @@ async fn main() -> Result<()> {
                 Some(path.clone()), 
                 Some(&llm_model), 
                 Some(&llm_url), 
-                chunk_prompt.as_deref()
+                chunk_prompt.as_deref(),
+                Some(&heading_levels),
+                Some(&speaker_pattern),
+                Some(token_limit),
+                Some(&tokenizer),
+                Some(max_chunk_size),
+                Some(min_chunk_size)
             ).await?;
             let output_text = format_output(&json!(result), format);
             
@@ -933,7 +1961,7 @@ async fn main() -> Result<()> {
         }
         
         Commands::Batch { 
-            dir, pattern, strategy, size, overlap, format, output_dir, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt 
+            dir, pattern, strategy, size, overlap, format, output_dir, model, ollama_url, threshold, llm_model, llm_url, chunk_prompt, heading_levels, speaker_pattern, token_limit, tokenizer, max_chunk_size, min_chunk_size 
         } => {
             // Create output directory
             fs::create_dir_all(&output_dir)
@@ -969,7 +1997,13 @@ async fn main() -> Result<()> {
                             Some(file_path.to_string_lossy().to_string()),
                             Some(&llm_model), 
                             Some(&llm_url), 
-                            chunk_prompt.as_deref()
+                            chunk_prompt.as_deref(),
+                            Some(&heading_levels),
+                            Some(&speaker_pattern),
+                            Some(token_limit),
+                            Some(&tokenizer),
+                            Some(max_chunk_size),
+                            Some(min_chunk_size)
                         ).await?;
                         
                         let output_file = format!("{}/{}_chunks.{}", 

@@ -27,15 +27,16 @@ docker-compose up -d
 # Test the blazing-fast CLI tools
 ./bin/fs-fast scan --depth 3 --sizes
 ./bin/llm "Hello from Rust CLI!"
-cat README.md | llm --timeout 300 --model=llama3.1:8b "You are an expert document analyst. Your task is to analyze the following text and insert the delimiter '<CHUNK_END>' wherever a new, distinct section or topic begins. Do not remove any of the original text. The delimiter should only be placed at the end of a complete thought, paragraph, or section."
+./bin/chunk file README.md --strategy heading-based --format text
 ```
 
 ## ⚡ Rust Architecture
 
-**8 Production-Ready Tools** - All optimized with LTO, strip, and panic=abort:
+**9 Production-Ready Tools** - All optimized with LTO, strip, and panic=abort:
 
 | Tool | Purpose | Key Features |
 |------|---------|--------------|
+| **chunk** | Advanced text chunking | 13 strategies, token-aware, semantic boundaries |
 | **fs-fast** | File system operations | JSON output, parallel processing, rich analysis |
 | **llm** | Multi-provider LLM client | Ollama, OpenAI, Claude, Gemini support |
 | **neo4j** | Knowledge graph operations | neo4rs v0.7, serde integration, async queries |
@@ -50,6 +51,7 @@ cat README.md | llm --timeout 300 --model=llama3.1:8b "You are an expert documen
 ```
 ./                              # Project root
 ├── bin/                       # 🔗 User-facing symlinks (clean API)
+│   ├── chunk -> ../tools/target/release/chunk
 │   ├── fs-fast -> ../tools/target/release/fs-fast
 │   ├── llm -> ../tools/target/release/llm  
 │   ├── neo4j -> ../tools/target/release/neo4j
@@ -60,6 +62,7 @@ cat README.md | llm --timeout 300 --model=llama3.1:8b "You are an expert documen
 │   └── crypto -> ../tools/target/release/crypto
 └── tools/                     # 🦀 High-performance Rust workspace
     ├── bin/                   # 📝 Rust source files (development)
+    │   ├── chunk.rs          # 📄 Text chunking source
     │   ├── fs-fast.rs        # ⚡ File operations source
     │   ├── llm.rs            # ⚡ LLM client source
     │   ├── neo4j.rs          # 🔗 Knowledge graph source
@@ -82,6 +85,112 @@ cat README.md | llm --timeout 300 --model=llama3.1:8b "You are an expert documen
 - **`tools/src/`** → Shared library code (utilities, error handling, output formatting)
 - **`tools/target/release/`** → Compiled binaries (build artifacts)
 
+## 📄 Advanced Text Chunking
+
+The **chunk** tool provides 13 intelligent chunking strategies for various document types and use cases:
+
+### **Phase 1: Document Structure Strategies**
+
+```bash
+# Heading-based chunking (split on H1, H2, H3 headers)
+./bin/chunk file document.md --strategy heading-based --heading-levels "1,2,3"
+
+# Token-aware chunking (stay under 512 tokens using word counting)
+./bin/chunk file article.txt --strategy token-aware --token-limit 512 --tokenizer word
+
+# Token-aware with GPT estimation (good for LLM contexts)
+./bin/chunk file content.txt --strategy token-aware --token-limit 2048 --tokenizer gpt
+
+# Recursive chunking (hierarchical splitting with size constraints)
+./bin/chunk file large_doc.txt --strategy recursive --max-chunk-size 1000 --min-chunk-size 100
+```
+
+### **Phase 2: Content-Type Specific Strategies**
+
+```bash
+# Dialogue chunking (preserve speaker turns)
+./bin/chunk file interview.txt --strategy dialogue --speaker-pattern "^([A-Z]+):\s*"
+
+# List-aware chunking (keep bullet/numbered lists together)
+./bin/chunk file tasks.md --strategy list-aware --size 500
+
+# Table-aware chunking (preserve table structures)
+./bin/chunk file data_report.md --strategy table-aware --size 800
+```
+
+### **AI-Powered Strategies (Require Ollama)**
+
+```bash
+# Semantic chunking (requires Ollama running)
+./bin/chunk file document.txt --strategy semantic --model nomic-embed-text --threshold 0.8
+
+# LLM-guided boundary detection
+./bin/chunk file content.txt --strategy llm --llm-model gpt-oss:latest --chunk-prompt "Split into logical sections"
+
+# Smart hybrid approach
+./bin/chunk file article.txt --strategy smart --size 1000 --threshold 0.7
+```
+
+### **Traditional Strategies**
+
+```bash
+# Fixed-size chunking with overlap
+./bin/chunk file doc.txt --strategy fixed --size 500 --overlap 50
+
+# Sentence-aware chunking
+./bin/chunk file article.txt --strategy sentence --size 800
+
+# Paragraph-based chunking
+./bin/chunk file essay.txt --strategy paragraph --size 1000
+
+# Code-aware chunking (respects function boundaries)
+./bin/chunk file source.rs --strategy code --size 800
+```
+
+### **Output Formats & Piped Input**
+
+```bash
+# JSON output (default, good for programmatic use)
+./bin/chunk file doc.txt --strategy heading-based --format json
+
+# Text output (human-readable)
+./bin/chunk file doc.txt --strategy token-aware --format text
+
+# CSV output (for spreadsheets)
+./bin/chunk file doc.txt --strategy recursive --format csv
+
+# Process text from stdin
+cat meeting_notes.txt | ./bin/chunk text --strategy dialogue --format json
+
+# Quick test with echo
+echo "This is a test. Perfect for chunking." | ./bin/chunk text --strategy sentence
+```
+
+### **Batch Processing**
+
+```bash
+# Process all markdown files in a directory
+./bin/chunk batch ./docs --pattern "*.md" --strategy heading-based --output-dir chunks
+
+# Process all transcripts with dialogue chunking
+./bin/chunk batch ./transcripts --pattern "*.txt" --strategy dialogue --output-dir processed
+```
+
+### **Practical Use Cases**
+
+```bash
+# For RAG systems - keep context under token limits
+./bin/chunk file knowledge_base.txt --strategy token-aware --token-limit 1024 --tokenizer gpt --format json
+
+# For documentation - preserve heading structure  
+./bin/chunk file manual.md --strategy heading-based --heading-levels "1,2" --format json
+
+# For meeting transcripts - group by speaker
+./bin/chunk file meeting.txt --strategy dialogue --speaker-pattern "^(.*?):\s*" --format json
+
+# For structured documents - preserve lists and tables
+./bin/chunk file report.md --strategy table-aware --format json
+```
 
 ## 🗄️ Database Services
 
@@ -129,6 +238,11 @@ cd tools && ./build.sh
 
 ### Tool Usage Examples
 ```bash
+# Advanced text chunking (13 strategies available)
+./bin/chunk file document.txt --strategy token-aware --token-limit 1024 --format json
+./bin/chunk file transcript.txt --strategy dialogue --format text
+echo "Sample text for chunking" | ./bin/chunk text --strategy sentence
+
 # File operations with rich JSON output
 ./bin/fs-fast scan --depth 3 --sizes
 find . -name "*.rs" -type f                    # Fast for simple finds
@@ -155,6 +269,11 @@ find . -name "*.rs" -type f                    # Fast for simple finds
 ## 🎯 Tool Selection Decision Tree
 
 ```
+Need text processing?
+├─ Document structure → ./bin/chunk --strategy {heading-based,token-aware,recursive}
+├─ Content-specific → ./bin/chunk --strategy {dialogue,list-aware,table-aware}
+└─ AI-powered chunking → ./bin/chunk --strategy {semantic,llm,smart}
+
 Need file operations?
 ├─ Speed critical + simple output → Native tools (find, ls, cat)
 ├─ Rich analysis + JSON output → ./bin/fs-fast
@@ -183,9 +302,10 @@ cd /path/to/your/project/tools && ./build.sh
 
 ## ✨ Features
 
-**Current Status: 8/8 Tools Operational**
+**Current Status: 9/9 Tools Operational**
 - ✅ **Clean Architecture**: Proper separation of user interface, source code, and build artifacts
-- ✅ **8 Production-Ready Rust Tools**: All optimized with LTO, strip, and panic=abort
+- ✅ **9 Production-Ready Rust Tools**: All optimized with LTO, strip, and panic=abort
+- ✅ **Advanced Text Processing**: 13 comprehensive chunking strategies for document analysis
 - ✅ **Modern Async Architecture**: tokio, reqwest, deadpool connection pooling
 - ✅ **Symlinked Binaries**: `./bin/*` for easy access, auto-updates on rebuild
 - ✅ **Comprehensive Database Stack**: Neo4j, PostgreSQL, Redis, Qdrant integration
