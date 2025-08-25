@@ -20,7 +20,7 @@ echo "📦 Building optimized binaries..."
 cargo build --release
 
 # Copy binaries to tools directory and create bin symlinks
-BINARIES=("fs-fast" "qdrant" "neo4j" "postgres" "benchmark" "llm")
+BINARIES=("chunk")
 BUILT_COUNT=0
 
 for binary in "${BINARIES[@]}"; do
@@ -52,34 +52,9 @@ fi
 echo ""
 echo "🧪 Testing tools..."
 
-if [ -f "./fs-fast" ]; then
-    echo "Testing fs-fast..."
-    ./fs-fast --help > /dev/null && echo "  ✅ fs-fast OK" || echo "  ❌ fs-fast failed"
-fi
-
-if [ -f "./qdrant" ]; then
-    echo "Testing qdrant..."
-    ./qdrant --help > /dev/null && echo "  ✅ qdrant OK" || echo "  ❌ qdrant failed"
-fi
-
-if [ -f "./neo4j" ]; then
-    echo "Testing neo4j..."  
-    ./neo4j --help > /dev/null && echo "  ✅ neo4j OK" || echo "  ❌ neo4j failed"
-fi
-
-if [ -f "./postgres" ]; then
-    echo "Testing postgres..."
-    ./postgres --help > /dev/null && echo "  ✅ postgres OK" || echo "  ❌ postgres failed"
-fi
-
-if [ -f "./benchmark" ]; then
-    echo "Testing benchmark..."
-    ./benchmark --help > /dev/null && echo "  ✅ benchmark OK" || echo "  ❌ benchmark failed"
-fi
-
-if [ -f "./llm" ]; then
-    echo "Testing llm..."
-    ./llm --help > /dev/null && echo "  ✅ llm OK" || echo "  ❌ llm failed"
+if [ -f "./chunk" ]; then
+    echo "Testing chunk..."
+    ./chunk --help > /dev/null && echo "  ✅ chunk OK" || echo "  ❌ chunk failed"
 fi
 
 echo ""
@@ -87,18 +62,13 @@ echo "🎉 Build complete! ($BUILT_COUNT/$((${#BINARIES[@]})) tools built)"
 echo "📂 Binaries available in both ./tools/ and ./bin/ (symlinked)"
 echo ""
 echo "📋 Usage examples:"
-echo "  # Ultra-fast file operations (use bin/ for convenience)"
-echo "  ./bin/fs-fast scan --depth 3 --sizes"
-echo "  ./bin/fs-fast read README.md"
+echo "  # Text chunking with semantic analysis"
+echo "  ./bin/chunk text 'Long document text...' --strategy semantic"
+echo "  ./bin/chunk file document.md --strategy smart --size 1000"
+echo "  ./bin/chunk batch ./docs --pattern '*.md' --strategy paragraph"
 echo ""
-echo "  # High-performance LLM client (6x faster than Node.js)"
-echo "  ./bin/llm 'Hello world'"
-echo "  ./bin/llm --list-models"
-echo "  ./bin/llm --model=gemini 'Explain AI'"
-echo ""
-echo "  # Database tools"
-echo "  ./bin/qdrant health"
-echo "  ./bin/neo4j search 'project entities'"
-echo "  ./bin/postgres health"
-echo "  ./bin/benchmark all"
+echo "  # Traditional chunking strategies"
+echo "  ./bin/chunk file code.rs --strategy code --size 800"
+echo "  ./bin/chunk text 'Sample text' --strategy sentence --format json"
+echo "  ./bin/chunk file article.txt --strategy paragraph --output chunks.json"
 echo ""

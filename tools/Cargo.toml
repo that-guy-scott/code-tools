@@ -4,37 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "fs-fast"
-path = "bin/fs-fast.rs"
-
-[[bin]]
-name = "qdrant"
-path = "bin/qdrant.rs"
-
-[[bin]]
-name = "neo4j"
-path = "bin/neo4j.rs"
-
-[[bin]]
-name = "postgres"
-path = "bin/postgres.rs"
-
-
-[[bin]]
-name = "llm"
-path = "bin/llm.rs"
-
-[[bin]]
-name = "redis"
-path = "bin/redis.rs"
-
-[[bin]]
-name = "http"
-path = "bin/http.rs"
-
-[[bin]]
-name = "crypto"
-path = "bin/crypto.rs"
+name = "chunk"
+path = "src/bin/chunk.rs"
 
 [dependencies]
 # Shared dependencies
@@ -90,6 +61,9 @@ hex = "0.4"
 rand = "0.8"
 getrandom = "0.2"
 urlencoding = "2.1"
+
+# Text chunking tool specific
+unicode-segmentation = "1.10"
 
 [profile.release]
 lto = true
