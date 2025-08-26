@@ -1,51 +1,44 @@
-name: code-tools
 version: '3.8'
 
 services:
   postgres:
-    image: postgres:15
-    container_name: ${PROJECT_NAME:-code-tools}-postgres
+    image: postgres:16
+    container_name: postgres
     environment:
-      POSTGRES_DB: ${PROJECT_NAME:-code_tools}_dev
-      POSTGRES_USER: dev_user
-      POSTGRES_PASSWORD: dev_password_123
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: devdb
+      POSTGRES_USER: postgres
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
-  neo4j:
-    image: neo4j:5.23
-    container_name: ${PROJECT_NAME:-code-tools}-neo4j
-    environment:
-      NEO4J_AUTH: neo4j/dev_password_123
-      NEO4J_PLUGINS: '["apoc","graph-data-science"]'
-      NEO4J_apoc_export_file_enabled: true
-      NEO4J_apoc_import_file_enabled: true
-      NEO4J_apoc_import_file_use__neo4j__config: true
-    ports:
-      - "7474:7474"  # HTTP
-      - "7687:7687"  # Bolt
-    volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
-      - neo4j_import:/var/lib/neo4j/import
-      - neo4j_plugins:/plugins
-    restart: unless-stopped
-
   redis:
-    image: redis:7-alpine
-    container_name: ${PROJECT_NAME:-code-tools}-redis
+    image: redis:latest
+    container_name: redis
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
 
+  neo4j:
+    image: neo4j:latest
+    container_name: neo4j
+    environment:
+      NEO4J_AUTH: neo4j/password
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    restart: unless-stopped
+
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: ${PROJECT_NAME:-code-tools}-qdrant
+    container_name: qdrant
     ports:
       - "6333:6333"
       - "6334:6334"
@@ -55,23 +48,7 @@ services:
 
 volumes:
   postgres_data:
-    external: true
-    name: code-tools-postgres-data
-  neo4j_data:
-    external: true
-    name: code-tools-neo4j-data
-  neo4j_logs:
-    external: true
-    name: code-tools-neo4j-logs
-  neo4j_import:
-    external: true
-    name: code-tools-neo4j-import
-  neo4j_plugins:
-    external: true
-    name: code-tools-neo4j-plugins
   redis_data:
-    external: true
-    name: code-tools-redis-data
+  neo4j_data:
+  neo4j_logs:
   qdrant_data:
-    external: true
-    name: code-tools-qdrant-data

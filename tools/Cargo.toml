@@ -54,8 +54,8 @@ memmap2 = "0.9"
 walkdir = "2.4"
 
 # Qdrant specific
-qdrant-client = { version = "1.7", features = ["serde"] }
-tonic = { version = "0.11", features = ["tls", "tls-roots"] }
+qdrant-client = { version = "1.14", features = ["serde"] }
+tonic = { version = "0.12", features = ["tls", "tls-roots"] }
 
 # Neo4j specific
 neo4rs = "0.7"
